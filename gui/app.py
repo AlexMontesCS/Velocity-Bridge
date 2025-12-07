@@ -525,19 +525,6 @@ class VelocityApp(ctk.CTk):
             # Thread will die on its own shortly
             self.server = None
 
-    def stop_server(self):
-        if self.server and self.server_running:
-            # Signal uvicorn to exit
-            self.server.should_exit = True
-            
-            # Update UI immediately
-            self.server_running = False
-            self.status_label.configure(text="🔴 Server Stopped", text_color="#e74c3c")
-            self.toggle_btn.configure(text="Start Server", fg_color="#2ecc71")
-            
-            # Thread will die on its own shortly
-            self.server = None
-
     def get_ip(self):
         try:
             return socket.gethostbyname(socket.gethostname())
