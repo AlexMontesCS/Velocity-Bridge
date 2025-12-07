@@ -311,12 +311,12 @@ class VelocityApp(ctk.CTk):
     def create_settings_frame(self):
         frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         
-        # Center Container
+        # Use scrollable frame for content
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(0, weight=1)
         
-        content_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        content_frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=40)
+        content_frame = ctk.CTkScrollableFrame(frame, fg_color="transparent")
+        content_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         content_frame.grid_columnconfigure(0, weight=1)
         
         # Header
