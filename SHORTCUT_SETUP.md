@@ -6,8 +6,8 @@ After running `./setup.sh`, you got a server URL and token. You'll need both.
 
 Scan the QR codes in the README or use these links:
 
-- **Text Clipboard**: [Add Shortcut](https://www.icloud.com/shortcuts/26b04d66bac64f789)
-- **Image Clipboard**: [Add Shortcut](https://www.icloud.com/shortcuts/1b5c1f0b82494069a)
+- **Text Clipboard**: [Add Shortcut](https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152)
+- **Image Clipboard**: [Add Shortcut](https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865)
 
 After adding, edit each shortcut and replace `YOUR_IP` and `yourtoken` with your values.
 
