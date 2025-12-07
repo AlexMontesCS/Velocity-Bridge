@@ -45,17 +45,20 @@ install_deps() {
     
     case $PKG_MANAGER in
         dnf)
-            echo -e "  Detected: Fedora/RHEL"
-            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode 2>/dev/null || true
+            echo -ne "  Detected: Fedora/RHEL - Installing..."
+            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode &>/dev/null
+            echo -e " ✅"
             ;;
         apt)
-            echo -e "  Detected: Ubuntu/Debian"
-            sudo apt update -qq
-            sudo apt install -y python3 python3-pip wl-clipboard xclip libnotify-bin qrencode 2>/dev/null || true
+            echo -ne "  Detected: Ubuntu/Debian - Installing..."
+            sudo apt-get update -qq &>/dev/null
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv wl-clipboard xclip libnotify-bin qrencode &>/dev/null
+            echo -e " ✅"
             ;;
         pacman)
-            echo -e "  Detected: Arch Linux"
-            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode 2>/dev/null || true
+            echo -ne "  Detected: Arch Linux - Installing..."
+            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode &>/dev/null
+            echo -e " ✅"
             ;;
         *)
             echo -e "  ${YELLOW}Unknown distro. Please install manually:${NC}"
@@ -115,43 +118,47 @@ if [ $MISSING_DEPS -eq 1 ]; then
 fi
 
 # Install Python dependencies
-echo -e "\n${YELLOW}[3/6]${NC} Installing Python packages..."
-if command -v pip &> /dev/null; then
-    pip install -r "$SCRIPT_DIR/requirements.txt" --quiet --user
+echo -ne "${YELLOW}[3/6]${NC} Installing Python packages..."
+
+# Try different pip installation methods (handle PEP 668 on Ubuntu 23+)
+PIP_CMD="pip3"
+command -v pip &>/dev/null && PIP_CMD="pip"
+
+# First try normal install, then try with --break-system-packages for Ubuntu 23+
+if $PIP_CMD install -r "$SCRIPT_DIR/requirements.txt" --quiet --user 2>/dev/null; then
+    echo -e " ✅"
+elif $PIP_CMD install -r "$SCRIPT_DIR/requirements.txt" --quiet --user --break-system-packages 2>/dev/null; then
+    echo -e " ✅"
 else
-    pip3 install -r "$SCRIPT_DIR/requirements.txt" --quiet --user
+    echo -e " ${RED}❌${NC}"
+    echo -e "  ${RED}Failed to install Python packages. Try: pip3 install -r requirements.txt --break-system-packages${NC}"
+    exit 1
 fi
-echo -e "  ✅ Python packages installed"
 
 # Generate secure token
-echo -e "\n${YELLOW}[4/6]${NC} Generating security token..."
+echo -ne "${YELLOW}[4/6]${NC} Generating security token..."
 SECURITY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(12))")
-echo -e "  ✅ Token generated: ${GREEN}$SECURITY_TOKEN${NC}"
+echo -e " ✅"
 
 # Create service file with token
-echo -e "\n${YELLOW}[5/6]${NC} Setting up systemd service..."
+echo -ne "${YELLOW}[5/6]${NC} Setting up systemd service..."
 mkdir -p ~/.config/systemd/user
-
-# Replace the placeholder token in service file
 sed "s/YOUR_SECURE_TOKEN_HERE/$SECURITY_TOKEN/g" "$SCRIPT_DIR/velocity.service" > ~/.config/systemd/user/velocity.service
-
-# Update WorkingDirectory to actual path
 sed -i "s|%h/velocity|$SCRIPT_DIR|g" ~/.config/systemd/user/velocity.service
-
-echo -e "  ✅ Service file created at ~/.config/systemd/user/velocity.service"
+echo -e " ✅"
 
 # Enable and start service
-echo -e "\n${YELLOW}[6/6]${NC} Starting Velocity service..."
-systemctl --user daemon-reload
-systemctl --user enable velocity
-systemctl --user restart velocity
+echo -ne "${YELLOW}[6/6]${NC} Starting Velocity service..."
+systemctl --user daemon-reload &>/dev/null
+systemctl --user enable velocity &>/dev/null
+systemctl --user restart velocity &>/dev/null
 
 # Wait for service to start
 sleep 2
 
 # Verify service is running
 if systemctl --user is-active --quiet velocity; then
-    echo -e "  ✅ Velocity service is running"
+    echo -e " ✅"
 else
     echo -e "  ${RED}❌ Service failed to start. Check: journalctl --user -u velocity${NC}"
     exit 1
