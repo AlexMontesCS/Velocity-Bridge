@@ -48,7 +48,7 @@ Scan these to add the shortcuts:
 
 Then edit each shortcut and replace `YOUR_IP` and `yourtoken` with the values from setup.
 
-Lost your token? Run `./info.sh`.
+Lost your token? Run `./service/info.sh`.
 
 ## How it works
 
