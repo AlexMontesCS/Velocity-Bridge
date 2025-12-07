@@ -46,23 +46,23 @@ install_deps() {
     case $PKG_MANAGER in
         dnf)
             echo -ne "  Detected: Fedora/RHEL - Installing..."
-            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode libheif-tools ImageMagick &>/dev/null
+            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode libheif-tools ImageMagick avahi avahi-tools nss-mdns &>/dev/null
             echo -e " ✅"
             ;;
         apt)
             echo -ne "  Detected: Ubuntu/Debian - Installing..."
             sudo apt-get update -qq &>/dev/null
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv wl-clipboard xclip libnotify-bin qrencode libheif-examples imagemagick &>/dev/null
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv wl-clipboard xclip libnotify-bin qrencode libheif-examples imagemagick avahi-daemon avahi-utils libnss-mdns &>/dev/null
             echo -e " ✅"
             ;;
         pacman)
             echo -ne "  Detected: Arch Linux - Installing..."
-            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode libheif imagemagick &>/dev/null
+            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode libheif imagemagick avahi nss-mdns &>/dev/null
             echo -e " ✅"
             ;;
         *)
             echo -e "  ${YELLOW}Unknown distro. Please install manually:${NC}"
-            echo -e "  python3, pip, wl-clipboard or xclip, libnotify, qrencode"
+            echo -e "  python3, pip, wl-clipboard or xclip, libnotify, qrencode, avahi-daemon"
             ;;
     esac
 }
@@ -155,14 +155,25 @@ else
 fi
 
 # Create service file with token
-echo -ne "${YELLOW}[5/6]${NC} Setting up systemd service..."
+echo -ne "${YELLOW}[5/7]${NC} Setting up systemd service..."
 mkdir -p ~/.config/systemd/user
 sed "s/YOUR_SECURE_TOKEN_HERE/$SECURITY_TOKEN/g" "$SCRIPT_DIR/velocity.service" > ~/.config/systemd/user/velocity.service
 sed -i "s|%h/velocity|$SCRIPT_DIR|g" ~/.config/systemd/user/velocity.service
 echo -e " ✅"
 
+# Set up mDNS/Avahi for [hostname].local
+echo -ne "${YELLOW}[6/7]${NC} Setting up mDNS ($(hostname).local)..."
+if [ -f "$SCRIPT_DIR/velocity-avahi.service" ]; then
+    sudo cp "$SCRIPT_DIR/velocity-avahi.service" /etc/avahi/services/ 2>/dev/null
+    sudo systemctl enable avahi-daemon &>/dev/null
+    sudo systemctl restart avahi-daemon &>/dev/null
+    echo -e " ✅"
+else
+    echo -e " ${YELLOW}(skipped - file not found)${NC}"
+fi
+
 # Enable and start service
-echo -ne "${YELLOW}[6/6]${NC} Starting Velocity service..."
+echo -ne "${YELLOW}[7/7]${NC} Starting Velocity service..."
 systemctl --user daemon-reload &>/dev/null
 systemctl --user enable velocity &>/dev/null
 systemctl --user restart velocity &>/dev/null
@@ -193,7 +204,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 echo -e "📋 ${BLUE}Your Configuration:${NC}"
-echo -e "   Server URL:  ${GREEN}http://$IP_ADDRESS:8080${NC}"
+echo -e "   Server URL:  ${GREEN}http://$(hostname).local:8080${NC}  (or http://$IP_ADDRESS:8080)"
 echo -e "   Token:       ${GREEN}$SECURITY_TOKEN${NC}"
 echo ""
 echo -e "📱 ${BLUE}Next Steps:${NC}"

@@ -1,0 +1,5 @@
+customtkinter
+packaging
+pillow
+qrcode
+pystray

@@ -34,7 +34,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 echo -e "📋 ${BLUE}Your Configuration:${NC}"
-echo -e "   Server URL:  ${GREEN}http://$IP_ADDRESS:8080${NC}"
+echo -e "   Server URL:  ${GREEN}http://$(hostname).local:8080${NC}  (or http://$IP_ADDRESS:8080)"
 echo -e "   Token:       ${GREEN}$SECURITY_TOKEN${NC}"
 echo ""
 
@@ -59,7 +59,7 @@ if command -v qrencode &> /dev/null; then
     }
     echo ""
     echo -e "After adding, edit each shortcut and replace:"
-    echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}$IP_ADDRESS${NC}"
+    echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}$(hostname).local${NC}  (or $IP_ADDRESS)"
     echo -e "  ${YELLOW}yourtoken${NC}  → ${GREEN}$SECURITY_TOKEN${NC}"
 else
     echo -e "📱 ${BLUE}iOS Shortcuts:${NC}"

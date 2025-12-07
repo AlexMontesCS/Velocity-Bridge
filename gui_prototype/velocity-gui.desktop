@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Velocity Bridge
+Comment=iOS ↔ Linux Clipboard Sync
+Exec=/home/arsh/velocity/gui_prototype/start_velocity_gui.sh
+Icon=/home/arsh/velocity/gui_prototype/velocity-icon-final.png
+Terminal=false
+Type=Application
+Categories=Utility;Network;
+keywords=clipboard;ios;sync;
+StartupNotify=true

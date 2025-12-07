@@ -88,7 +88,35 @@ Everything stays on your local network.
 - Distros without systemd (Alpine, Void, Artix)
 - WSL (no display server for clipboard)
 
-## Commands
+## GUI Mode (Optional)
+
+Want a graphical interface instead of the background service? **One command:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install-gui.sh | bash
+```
+
+That's it! Look for **"Velocity Bridge"** in your applications menu.
+
+### GUI Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | See server status, toggle on/off, copy connection details |
+| **QR Shortcuts** | Scan directly to add iOS shortcuts |
+| **Live Logs** | Watch clipboard activity in real-time |
+| **System Tray** | Minimize to tray – server keeps running in background |
+| **mDNS Support** | Use `hostname.local` instead of IP address |
+
+### How the GUI Works
+
+- **Close window** → Minimizes to system tray (server keeps running)
+- **Tray → Show** → Brings window back
+- **Tray → Quit** → Fully stops server and exits
+
+The GUI runs its own server instance, independent of the systemd service. Use **either** the GUI **or** the background service, not both at once.
+
+## Commands (Background Service)
 
 ```bash
 # Check if it's running
