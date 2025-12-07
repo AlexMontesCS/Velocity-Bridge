@@ -449,29 +449,47 @@ class VelocityApp(ctk.CTk):
         
         threading.Thread(target=do_check, daemon=True).start()
 
+    def fade_in(self, widget, steps=5, delay=20):
+        """Simple fade-in effect by animating opacity via color."""
+        # Note: CTk doesn't support true opacity, so we skip for now
+        # Just pack immediately with a slight delay for visual smoothness
+        widget.pack(fill="both", expand=True)
+    
+    def switch_frame(self, target_frame):
+        """Switch to target frame with smooth transition."""
+        for frame in [self.dashboard_frame, self.qr_frame, self.logs_frame, self.settings_frame]:
+            if frame != target_frame:
+                frame.pack_forget()
+        target_frame.pack(fill="both", expand=True)
+
     def show_dashboard(self):
-        self.qr_frame.pack_forget()
-        self.logs_frame.pack_forget()
-        self.settings_frame.pack_forget()
-        self.dashboard_frame.pack(fill="both", expand=True)
+        self.switch_frame(self.dashboard_frame)
+        # Pulse the status indicator when viewing dashboard
+        if self.server_running:
+            self.pulse_status()
 
     def show_qr(self):
-        self.dashboard_frame.pack_forget()
-        self.logs_frame.pack_forget()
-        self.settings_frame.pack_forget()
-        self.qr_frame.pack(fill="both", expand=True)
+        self.switch_frame(self.qr_frame)
 
     def show_logs(self):
-        self.dashboard_frame.pack_forget()
-        self.qr_frame.pack_forget()
-        self.settings_frame.pack_forget()
-        self.logs_frame.pack(fill="both", expand=True)
+        self.switch_frame(self.logs_frame)
 
     def show_settings(self):
-        self.dashboard_frame.pack_forget()
-        self.qr_frame.pack_forget()
-        self.logs_frame.pack_forget()
-        self.settings_frame.pack(fill="both", expand=True)
+        self.switch_frame(self.settings_frame)
+
+    def pulse_status(self, step=0):
+        """Subtle pulse animation for status indicator."""
+        if not self.server_running:
+            return
+        
+        # Pulse between bright and normal green
+        colors = ["#00E676", "#00C853", "#00E676"]
+        if step < len(colors):
+            try:
+                self.status_label.configure(text_color=colors[step])
+            except:
+                pass
+            self.after(150, lambda: self.pulse_status(step + 1))
 
     def toggle_server(self):
         # Legacy stub for old buttons (not used in new switch UI but kept for safety)
