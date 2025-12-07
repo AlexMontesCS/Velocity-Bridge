@@ -95,7 +95,7 @@ class VelocityApp(ctk.CTk):
         # Sidebar
         self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(5, weight=1)
+        self.sidebar.grid_rowconfigure(6, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar, text="Velocity\nBridge", font=ctk.CTkFont(size=26, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(40, 10))
@@ -112,8 +112,11 @@ class VelocityApp(ctk.CTk):
         self.logs_btn = ctk.CTkButton(self.sidebar, text="  Live Logs", anchor="w", command=self.show_logs, font=ctk.CTkFont(size=14, weight="bold"), height=40)
         self.logs_btn.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
         
+        self.settings_btn = ctk.CTkButton(self.sidebar, text="  Settings", anchor="w", command=self.show_settings, font=ctk.CTkFont(size=14, weight="bold"), height=40)
+        self.settings_btn.grid(row=5, column=0, padx=20, pady=10, sticky="ew")
+        
         # Version footer
-        ctk.CTkLabel(self.sidebar, text="v1.0.0", text_color="#666666").grid(row=5, column=0, pady=20, sticky="s")
+        ctk.CTkLabel(self.sidebar, text="v1.0.0", text_color="#666666").grid(row=6, column=0, pady=20, sticky="s")
         
         # Main Area
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -123,6 +126,7 @@ class VelocityApp(ctk.CTk):
         self.dashboard_frame = self.create_dashboard_frame()
         self.qr_frame = self.create_qr_frame()
         self.logs_frame = self.create_logs_frame()
+        self.settings_frame = self.create_settings_frame()
         
         self.show_dashboard()
 
@@ -258,20 +262,122 @@ class VelocityApp(ctk.CTk):
         
         return frame
 
+    def create_settings_frame(self):
+        frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        
+        # Center Container
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(0, weight=1)
+        
+        content_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        content_frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=40)
+        content_frame.grid_columnconfigure(0, weight=1)
+        
+        # Header
+        ctk.CTkLabel(content_frame, text="Settings", font=ctk.CTkFont(size=24, weight="bold")).pack(anchor="w", pady=(0, 20))
+        
+        # --- Startup Card ---
+        startup_card = ctk.CTkFrame(content_frame, fg_color="#1E1E1E", corner_radius=15, border_width=1, border_color="#333333")
+        startup_card.pack(fill="x", pady=(0, 15), ipady=10)
+        
+        ctk.CTkLabel(startup_card, text="STARTUP", font=ctk.CTkFont(size=12, weight="bold"), text_color="#666666").pack(anchor="w", padx=25, pady=(15, 10))
+        
+        # Auto-start toggle
+        autostart_frame = ctk.CTkFrame(startup_card, fg_color="transparent")
+        autostart_frame.pack(fill="x", padx=25, pady=(0, 15))
+        
+        ctk.CTkLabel(autostart_frame, text="Start on login", font=ctk.CTkFont(size=14)).pack(side="left")
+        self.autostart_switch = ctk.CTkSwitch(autostart_frame, text="", command=self.toggle_autostart,
+                                               progress_color="#00E676", fg_color="#444444", width=50)
+        self.autostart_switch.pack(side="right")
+        
+        # Check current autostart state
+        if self.check_autostart_enabled():
+            self.autostart_switch.select()
+        
+        ctk.CTkLabel(startup_card, text="Launch Velocity Bridge automatically when you log in", 
+                    font=ctk.CTkFont(size=12), text_color="#888888").pack(anchor="w", padx=25, pady=(0, 15))
+        
+        # --- Notifications Card ---
+        notif_card = ctk.CTkFrame(content_frame, fg_color="#1E1E1E", corner_radius=15, border_width=1, border_color="#333333")
+        notif_card.pack(fill="x", pady=(0, 15), ipady=10)
+        
+        ctk.CTkLabel(notif_card, text="NOTIFICATIONS", font=ctk.CTkFont(size=12, weight="bold"), text_color="#666666").pack(anchor="w", padx=25, pady=(15, 10))
+        
+        # Desktop notifications toggle
+        notif_frame = ctk.CTkFrame(notif_card, fg_color="transparent")
+        notif_frame.pack(fill="x", padx=25, pady=(0, 15))
+        
+        ctk.CTkLabel(notif_frame, text="Show notifications", font=ctk.CTkFont(size=14)).pack(side="left")
+        self.notif_switch = ctk.CTkSwitch(notif_frame, text="", command=self.toggle_notifications,
+                                          progress_color="#00E676", fg_color="#444444", width=50)
+        self.notif_switch.select()  # Default on
+        self.notif_switch.pack(side="right")
+        
+        ctk.CTkLabel(notif_card, text="Show desktop notifications when clipboard is synced", 
+                    font=ctk.CTkFont(size=12), text_color="#888888").pack(anchor="w", padx=25, pady=(0, 15))
+        
+        # --- About Card ---
+        about_card = ctk.CTkFrame(content_frame, fg_color="#1E1E1E", corner_radius=15, border_width=1, border_color="#333333")
+        about_card.pack(fill="x", pady=(0, 15), ipady=10)
+        
+        ctk.CTkLabel(about_card, text="ABOUT", font=ctk.CTkFont(size=12, weight="bold"), text_color="#666666").pack(anchor="w", padx=25, pady=(15, 10))
+        ctk.CTkLabel(about_card, text="Velocity Bridge v1.0.0", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=25)
+        ctk.CTkLabel(about_card, text="iOS to Linux clipboard sync", font=ctk.CTkFont(size=12), text_color="#888888").pack(anchor="w", padx=25)
+        ctk.CTkLabel(about_card, text="github.com/Trex099/Velocity-Bridge", font=ctk.CTkFont(size=12), text_color="#00E676").pack(anchor="w", padx=25, pady=(5, 15))
+        
+        return frame
+
+    def check_autostart_enabled(self):
+        """Check if autostart is enabled."""
+        autostart_file = Path.home() / ".config/autostart/velocity-gui.desktop"
+        return autostart_file.exists()
+
+    def toggle_autostart(self):
+        """Toggle autostart on login."""
+        autostart_dir = Path.home() / ".config/autostart"
+        autostart_file = autostart_dir / "velocity-gui.desktop"
+        
+        if self.autostart_switch.get() == 1:
+            # Enable autostart
+            autostart_dir.mkdir(parents=True, exist_ok=True)
+            desktop_file = Path(__file__).parent / "velocity-gui.desktop"
+            if desktop_file.exists():
+                import shutil
+                shutil.copy(desktop_file, autostart_file)
+        else:
+            # Disable autostart
+            if autostart_file.exists():
+                autostart_file.unlink()
+
+    def toggle_notifications(self):
+        """Toggle desktop notifications."""
+        # Store preference (could be saved to config file)
+        self.notifications_enabled = self.notif_switch.get() == 1
+
     def show_dashboard(self):
         self.qr_frame.pack_forget()
         self.logs_frame.pack_forget()
+        self.settings_frame.pack_forget()
         self.dashboard_frame.pack(fill="both", expand=True)
 
     def show_qr(self):
         self.dashboard_frame.pack_forget()
         self.logs_frame.pack_forget()
+        self.settings_frame.pack_forget()
         self.qr_frame.pack(fill="both", expand=True)
 
     def show_logs(self):
         self.dashboard_frame.pack_forget()
         self.qr_frame.pack_forget()
+        self.settings_frame.pack_forget()
         self.logs_frame.pack(fill="both", expand=True)
+
+    def show_settings(self):
+        self.dashboard_frame.pack_forget()
+        self.qr_frame.pack_forget()
+        self.logs_frame.pack_forget()
+        self.settings_frame.pack(fill="both", expand=True)
 
     def toggle_server(self):
         # Legacy stub for old buttons (not used in new switch UI but kept for safety)
