@@ -199,13 +199,17 @@ echo ""
 
 # Display QR codes if qrencode is available
 if command -v qrencode &> /dev/null; then
-    echo -e "${BLUE}📱 Scan these QR codes to add iOS Shortcuts:${NC}"
-    echo ""
-    echo -e "${YELLOW}Text Clipboard:${NC}"
-    qrencode -t ANSIUTF8 "https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152"
-    echo ""
-    echo -e "${YELLOW}Image Clipboard:${NC}"
-    qrencode -t ANSIUTF8 "https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865"
+    echo -e "${BLUE}📱 Scan QR codes to add iOS Shortcuts:${NC}"
+    echo -e "${YELLOW}Text Clipboard:${NC}                    ${YELLOW}Image Clipboard:${NC}"
+    # Use -m 1 for minimal margin, making QR smaller
+    paste <(qrencode -t UTF8 -m 1 "https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152") \
+          <(qrencode -t UTF8 -m 1 "https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865") 2>/dev/null || {
+        # Fallback to one at a time if paste fails
+        echo -e "${YELLOW}Text:${NC}"
+        qrencode -t UTF8 -m 1 "https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152"
+        echo -e "${YELLOW}Image:${NC}"
+        qrencode -t UTF8 -m 1 "https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865"
+    }
     echo ""
     echo -e "After adding, edit each shortcut and replace:"
     echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}$IP_ADDRESS${NC}"
