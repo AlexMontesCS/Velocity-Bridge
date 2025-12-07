@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Velocity Bridge
 Comment=iOS ↔ Linux Clipboard Sync
-Exec=/home/arsh/velocity/gui_prototype/start_velocity_gui.sh
-Icon=/home/arsh/velocity/gui_prototype/velocity-icon-final.png
+Exec=/home/arsh/velocity/gui/start_velocity_gui.sh
+Icon=/home/arsh/velocity/gui/velocity-icon-final.png
 Terminal=false
 Type=Application
 Categories=Utility;Network;

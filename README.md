@@ -19,7 +19,7 @@ Choose your preferred mode:
 A full graphical app with system tray support:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui_prototype/install-gui.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
 ```
 
 Look for **"Velocity Bridge"** in your applications menu.
@@ -40,11 +40,13 @@ git clone https://github.com/Trex099/Velocity-Bridge.git
 cd velocity
 ./setup.sh          # For background service
 # OR
-./gui_prototype/setup-gui.sh  # For GUI
+./gui/setup-gui.sh  # For GUI
 ```
 </details>
 
 After setup, you'll see your server URL, token, and QR codes to scan.
+
+> **Note:** Use either the GUI **or** the background service, not both at once.
 
 ## iOS Side
 
@@ -118,8 +120,6 @@ If you installed the Desktop App (Option A), here's what you get:
 - Close window → Minimizes to tray (server keeps running)
 - Tray → Show → Brings window back
 - Tray → Quit → Fully stops and exits
-
-> **Note:** Use either the GUI or the background service, not both at once.
 
 ## Commands (Background Service)
 

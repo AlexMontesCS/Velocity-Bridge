@@ -84,8 +84,8 @@ cat > ~/.local/share/applications/velocity-gui.desktop << EOF
 [Desktop Entry]
 Name=Velocity Bridge
 Comment=iOS ↔ Linux Clipboard Sync
-Exec=$SCRIPT_DIR/gui_prototype/start_velocity_gui.sh
-Icon=$SCRIPT_DIR/gui_prototype/velocity-icon-final.png
+Exec=$SCRIPT_DIR/gui/start_velocity_gui.sh
+Icon=$SCRIPT_DIR/gui/velocity-icon-final.png
 Terminal=false
 Type=Application
 Categories=Utility;Network;
@@ -99,8 +99,8 @@ echo -e " ✅"
 
 # Make scripts executable
 echo -ne "${YELLOW}[4/4]${NC} Setting permissions..."
-chmod +x "$SCRIPT_DIR/gui_prototype/start_velocity_gui.sh"
-chmod +x "$SCRIPT_DIR/gui_prototype/app.py"
+chmod +x "$SCRIPT_DIR/gui/start_velocity_gui.sh"
+chmod +x "$SCRIPT_DIR/gui/app.py"
 echo -e " ✅"
 
 echo -e "\n${GREEN}"
@@ -111,7 +111,7 @@ echo -e "${NC}"
 
 echo -e "🚀 ${BLUE}You can now:${NC}"
 echo -e "   • Search for '${GREEN}Velocity Bridge${NC}' in your app menu"
-echo -e "   • Or run: ${GREEN}$SCRIPT_DIR/gui_prototype/app.py${NC}"
+echo -e "   • Or run: ${GREEN}$SCRIPT_DIR/gui/app.py${NC}"
 echo ""
 echo -e "📋 ${BLUE}Features:${NC}"
 echo -e "   • Dashboard with server status and control"

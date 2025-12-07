@@ -2,7 +2,7 @@
 #
 # Velocity Bridge GUI - One-Click Installer
 # Author: trex099-Arshgour
-# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui_prototype/install-gui.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
 #
 # This installs EVERYTHING: clones repo, installs deps, creates desktop app.
 # After running, look for "Velocity Bridge" in your applications menu.
@@ -135,8 +135,8 @@ cat > ~/.local/share/applications/velocity-gui.desktop << EOF
 [Desktop Entry]
 Name=Velocity Bridge
 Comment=iOS ↔ Linux Clipboard Sync
-Exec=$INSTALL_DIR/gui_prototype/start_velocity_gui.sh
-Icon=$INSTALL_DIR/gui_prototype/velocity-icon-final.png
+Exec=$INSTALL_DIR/gui/start_velocity_gui.sh
+Icon=$INSTALL_DIR/gui/velocity-icon-final.png
 Terminal=false
 Type=Application
 Categories=Utility;Network;
@@ -145,8 +145,8 @@ StartupNotify=true
 EOF
 
 chmod +x ~/.local/share/applications/velocity-gui.desktop
-chmod +x "$INSTALL_DIR/gui_prototype/start_velocity_gui.sh"
-chmod +x "$INSTALL_DIR/gui_prototype/app.py"
+chmod +x "$INSTALL_DIR/gui/start_velocity_gui.sh"
+chmod +x "$INSTALL_DIR/gui/app.py"
 update-desktop-database ~/.local/share/applications &>/dev/null || true
 echo -e " ✅"
 
