@@ -22,7 +22,7 @@ Then find "Velocity Bridge" in your applications menu.
 
 **Background Service** — headless, runs on boot:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
 ```
 
 <details>
@@ -30,8 +30,8 @@ curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/instal
 
 ```bash
 git clone https://github.com/Trex099/Velocity-Bridge.git
-cd velocity
-./setup.sh          # background service
+cd Velocity-Bridge
+./service/setup.sh  # background service
 ./gui/setup-gui.sh  # or GUI
 ```
 </details>
@@ -102,7 +102,7 @@ sudo firewall-cmd --reload
 ## Uninstall
 
 ```bash
-./uninstall.sh
+./service/uninstall.sh
 ```
 
 Or manually:

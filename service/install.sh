@@ -2,7 +2,7 @@
 #
 # Velocity Bridge - Remote Installer
 # Author: trex099-Arshgour
-# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
 #
 
 set -e
@@ -46,4 +46,4 @@ echo -e "${GREEN}✅ Downloaded to $INSTALL_DIR${NC}"
 echo ""
 
 # Run the setup script
-exec ./setup.sh
+exec ./service/setup.sh

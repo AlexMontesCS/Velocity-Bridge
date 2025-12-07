@@ -23,6 +23,7 @@ echo -e "${NC}"
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Detect package manager
 detect_pkg_manager() {
@@ -125,9 +126,9 @@ PIP_CMD="pip3"
 command -v pip &>/dev/null && PIP_CMD="pip"
 
 # First try normal install, then try with --break-system-packages for Ubuntu 23+
-if $PIP_CMD install -r "$SCRIPT_DIR/requirements.txt" --quiet --user 2>/dev/null; then
+if $PIP_CMD install -r "$PROJECT_DIR/requirements.txt" --quiet --user 2>/dev/null; then
     echo -e " ✅"
-elif $PIP_CMD install -r "$SCRIPT_DIR/requirements.txt" --quiet --user --break-system-packages 2>/dev/null; then
+elif $PIP_CMD install -r "$PROJECT_DIR/requirements.txt" --quiet --user --break-system-packages 2>/dev/null; then
     echo -e " ✅"
 else
     echo -e " ${RED}❌${NC}"
@@ -157,8 +158,22 @@ fi
 # Create service file with token
 echo -ne "${YELLOW}[5/7]${NC} Setting up systemd service..."
 mkdir -p ~/.config/systemd/user
-sed "s/YOUR_SECURE_TOKEN_HERE/$SECURITY_TOKEN/g" "$SCRIPT_DIR/velocity.service" > ~/.config/systemd/user/velocity.service
-sed -i "s|%h/velocity|$SCRIPT_DIR|g" ~/.config/systemd/user/velocity.service
+cat > ~/.config/systemd/user/velocity.service << EOF
+[Unit]
+Description=Velocity Bridge - iOS to Linux Clipboard Sync
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$PROJECT_DIR
+Environment="SECURITY_TOKEN=$SECURITY_TOKEN"
+ExecStart=$(which python3) -m uvicorn main:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
 echo -e " ✅"
 
 # Set up mDNS/Avahi
