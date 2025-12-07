@@ -27,6 +27,12 @@ SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | sed 's/.*SECURITY_TOKE
 # Get IP address
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
 
+# Get proper hostname (avoid IP-as-hostname issues)
+HOSTNAME_SHORT=$(hostnamectl --static 2>/dev/null | grep -v '^$' || cat /etc/hostname 2>/dev/null | grep -v '^$' || echo "")
+if [ -z "$HOSTNAME_SHORT" ] || echo "$HOSTNAME_SHORT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    HOSTNAME_SHORT=""
+fi
+
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║           🚀 Velocity Bridge Configuration                ║"
@@ -34,7 +40,11 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 echo -e "📋 ${BLUE}Your Configuration:${NC}"
-echo -e "   Server URL:  ${GREEN}http://$(hostname).local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+if [ -n "$HOSTNAME_SHORT" ]; then
+    echo -e "   Server URL:  ${GREEN}http://${HOSTNAME_SHORT}.local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+else
+    echo -e "   Server URL:  ${GREEN}http://$IP_ADDRESS:8080${NC}"
+fi
 echo -e "   Token:       ${GREEN}$SECURITY_TOKEN${NC}"
 echo ""
 
@@ -59,7 +69,11 @@ if command -v qrencode &> /dev/null; then
     }
     echo ""
     echo -e "After adding, edit each shortcut and replace:"
-    echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}$(hostname).local${NC}  (or $IP_ADDRESS)"
+    if [ -n "$HOSTNAME_SHORT" ]; then
+        echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}${HOSTNAME_SHORT}.local${NC}  (or $IP_ADDRESS)"
+    else
+        echo -e "  ${YELLOW}YOUR_IP${NC}    → ${GREEN}$IP_ADDRESS${NC}"
+    fi
     echo -e "  ${YELLOW}yourtoken${NC}  → ${GREEN}$SECURITY_TOKEN${NC}"
 else
     echo -e "📱 ${BLUE}iOS Shortcuts:${NC}"

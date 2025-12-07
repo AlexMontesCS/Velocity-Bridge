@@ -161,8 +161,18 @@ sed "s/YOUR_SECURE_TOKEN_HERE/$SECURITY_TOKEN/g" "$SCRIPT_DIR/velocity.service" 
 sed -i "s|%h/velocity|$SCRIPT_DIR|g" ~/.config/systemd/user/velocity.service
 echo -e " ✅"
 
-# Set up mDNS/Avahi for [hostname].local
-echo -ne "${YELLOW}[6/7]${NC} Setting up mDNS ($(hostname).local)..."
+# Set up mDNS/Avahi
+# Get proper hostname (avoid IP-as-hostname issues)
+HOSTNAME_SHORT=$(hostnamectl --static 2>/dev/null | grep -v '^$' || cat /etc/hostname 2>/dev/null | grep -v '^$' || echo "")
+if [ -z "$HOSTNAME_SHORT" ] || echo "$HOSTNAME_SHORT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    HOSTNAME_SHORT=""
+fi
+
+if [ -n "$HOSTNAME_SHORT" ]; then
+    echo -ne "${YELLOW}[6/7]${NC} Setting up mDNS (${HOSTNAME_SHORT}.local)..."
+else
+    echo -ne "${YELLOW}[6/7]${NC} Setting up mDNS..."
+fi
 if [ -f "$SCRIPT_DIR/velocity-avahi.service" ]; then
     sudo cp "$SCRIPT_DIR/velocity-avahi.service" /etc/avahi/services/ 2>/dev/null
     sudo systemctl enable avahi-daemon &>/dev/null
@@ -204,7 +214,11 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 echo -e "📋 ${BLUE}Your Configuration:${NC}"
-echo -e "   Server URL:  ${GREEN}http://$(hostname).local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+if [ -n "$HOSTNAME_SHORT" ]; then
+    echo -e "   Server URL:  ${GREEN}http://${HOSTNAME_SHORT}.local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+else
+    echo -e "   Server URL:  ${GREEN}http://$IP_ADDRESS:8080${NC}"
+fi
 echo -e "   Token:       ${GREEN}$SECURITY_TOKEN${NC}"
 echo ""
 echo -e "📱 ${BLUE}Next Steps:${NC}"

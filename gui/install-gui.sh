@@ -119,7 +119,17 @@ EOF
 fi
 
 # Setup mDNS
-echo -ne "${YELLOW}[5/6]${NC} Setting up mDNS ($(hostname).local)..."
+# Get proper hostname (avoid IP-as-hostname issues)
+HOSTNAME_SHORT=$(hostnamectl --static 2>/dev/null | grep -v '^$' || cat /etc/hostname 2>/dev/null | grep -v '^$' || echo "")
+if [ -z "$HOSTNAME_SHORT" ] || echo "$HOSTNAME_SHORT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    HOSTNAME_SHORT=""
+fi
+
+if [ -n "$HOSTNAME_SHORT" ]; then
+    echo -ne "${YELLOW}[5/6]${NC} Setting up mDNS (${HOSTNAME_SHORT}.local)..."
+else
+    echo -ne "${YELLOW}[5/6]${NC} Setting up mDNS..."
+fi
 if [ -f "$INSTALL_DIR/velocity-avahi.service" ]; then
     sudo cp "$INSTALL_DIR/velocity-avahi.service" /etc/avahi/services/ 2>/dev/null || true
     sudo systemctl enable avahi-daemon &>/dev/null || true
@@ -163,7 +173,11 @@ echo -e "${NC}"
 echo -e "🚀 ${BLUE}Find 'Velocity Bridge' in your applications menu!${NC}"
 echo ""
 echo -e "📋 ${BLUE}Your Configuration:${NC}"
-echo -e "   Server URL:  ${GREEN}http://$(hostname).local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+if [ -n "$HOSTNAME_SHORT" ]; then
+    echo -e "   Server URL:  ${GREEN}http://${HOSTNAME_SHORT}.local:8080${NC}  (or http://$IP_ADDRESS:8080)"
+else
+    echo -e "   Server URL:  ${GREEN}http://$IP_ADDRESS:8080${NC}"
+fi
 echo -e "   Token:       ${GREEN}$SECURITY_TOKEN${NC}"
 echo ""
 echo -e "📱 ${BLUE}iOS Setup:${NC}"

@@ -164,13 +164,24 @@ class VelocityApp(ctk.CTk):
         
         ctk.CTkLabel(info_card, text="CONNECTION LINK", font=ctk.CTkFont(size=12, weight="bold"), text_color="#666666").pack(anchor="w", padx=25, pady=(20, 15))
         
+        # Get proper hostname (avoid IP-as-hostname issues)
+        hostname = socket.gethostname()
+        # Check if hostname looks like an IP address
+        import re
+        if re.match(r'^\d+\.\d+\.\d+\.\d+$', hostname):
+            display_addr = f"http://{self.ip_address}:8080"
+            addr_hint = "Network Address"
+        else:
+            display_addr = f"http://{hostname}.local:8080"
+            addr_hint = f"Network Address (use {hostname}.local or IP)"
+        
         # Address Row
         addr_frame = ctk.CTkFrame(info_card, fg_color="transparent")
         addr_frame.pack(fill="x", padx=20, pady=(0, 10))
-        ctk.CTkLabel(addr_frame, text=f"Network Address (use {socket.gethostname()}.local or IP)", font=ctk.CTkFont(size=13), text_color="#AAAAAA").pack(anchor="w", pady=(0, 5))
+        ctk.CTkLabel(addr_frame, text=addr_hint, font=ctk.CTkFont(size=13), text_color="#AAAAAA").pack(anchor="w", pady=(0, 5))
         self.ip_entry = ctk.CTkEntry(addr_frame, height=45, font=ctk.CTkFont(family="Monospace", size=14), 
                                     border_width=0, fg_color="#111111", text_color="white")
-        self.ip_entry.insert(0, f"http://{socket.gethostname()}.local:8080")
+        self.ip_entry.insert(0, display_addr)
         self.ip_entry.configure(state="readonly")
         self.ip_entry.pack(fill="x")
 
