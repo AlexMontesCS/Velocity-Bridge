@@ -12,57 +12,43 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 
 ## Install
 
-Choose your preferred mode:
+Pick one:
 
-### Option A: Desktop App (GUI)
-
-A full graphical app with system tray support:
-
+**Desktop App (GUI)** — has a system tray, dashboard, live logs:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
 ```
+Then find "Velocity Bridge" in your applications menu.
 
-Look for **"Velocity Bridge"** in your applications menu.
-
-### Option B: Background Service (systemd)
-
-Headless service that runs automatically on boot:
-
+**Background Service** — headless, runs on boot:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
 ```
 
 <details>
-<summary>Or install manually</summary>
+<summary>Manual install</summary>
 
 ```bash
 git clone https://github.com/Trex099/Velocity-Bridge.git
 cd velocity
-./setup.sh          # For background service
-# OR
-./gui/setup-gui.sh  # For GUI
+./setup.sh          # background service
+./gui/setup-gui.sh  # or GUI
 ```
 </details>
 
-After setup, you'll see your server URL, token, and QR codes to scan.
+After setup you'll see your server URL, token, and QR codes. Use either GUI or the service, not both.
 
-> **Note:** Use either the GUI **or** the background service, not both at once.
+## iOS Setup
 
-## iOS Side
-
-Scan these QR codes to add the shortcuts directly:
+Scan these to add the shortcuts:
 
 | Text Clipboard | Image Clipboard |
 |----------------|-----------------|
 | <img src="assets/qr_text.png" width="200"> | <img src="assets/qr_image.png" width="200"> |
 
-After adding, edit each shortcut and replace:
-- `YOUR_IP` → your server IP (from setup.sh output)
-- `yourtoken` → your token (from setup.sh output)
+Then edit each shortcut and replace `YOUR_IP` and `yourtoken` with the values from setup.
 
-**Lost your token?** Run `./info.sh` to see your config again.
-
-Or set them up manually — instructions in [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md).
+Lost your token? Run `./info.sh`.
 
 ## How it works
 
@@ -72,80 +58,44 @@ iPhone  ──HTTP POST──▶  Linux
   └─ text/image ──────▶ clipboard
 ```
 
-Your iPhone sends data to a small Python server running on your Linux box. The server copies it to your clipboard using `wl-copy` (Wayland) or `xclip` (X11).
-
-Everything stays on your local network.
+Your iPhone sends data to a Python server on your Linux box. The server copies it to clipboard using `wl-copy` or `xclip`. Everything stays local.
 
 ## Requirements
 
-**Linux:**
-- Python 3.10+
-- `wl-clipboard` or `xclip`
-- `notify-send` (optional, for notifications)
-- systemd (for the auto-start service)
-
-**iPhone:**
-- iOS 15+ with Shortcuts app
+Linux: Python 3.10+, `wl-clipboard` or `xclip`, systemd  
+iPhone: iOS 15+ with Shortcuts app
 
 ## Supported Distros
 
-**Tested:**
-- Fedora 40+ ✅
+Tested on Fedora 40+. Should work on Ubuntu 22.04+, Debian 12+, Arch, openSUSE, Pop!_OS, Mint.
 
-**Should work (untested):**
-- Ubuntu 22.04+
-- Debian 12+
-- Arch Linux
-- openSUSE
-- Pop!_OS
-- Linux Mint
+Won't work on distros without systemd (Alpine, Void) or WSL.
 
-**Won't work:**
-- Distros without systemd (Alpine, Void, Artix)
-- WSL (no display server for clipboard)
+## GUI
 
-## GUI Features
+If you picked the desktop app:
+- **Dashboard** — server status, connection info
+- **QR Shortcuts** — scan to setup iOS
+- **Live Logs** — see clipboard activity
+- **System Tray** — close window to minimize, right-click for quit
 
-If you installed the Desktop App (Option A), here's what you get:
+Uses mDNS so you can use `hostname.local` instead of IP.
 
-| Feature | Description |
-|---------|-------------|
-| **Dashboard** | See server status, toggle on/off, copy connection details |
-| **QR Shortcuts** | Scan directly to add iOS shortcuts |
-| **Live Logs** | Watch clipboard activity in real-time |
-| **System Tray** | Minimize to tray – server keeps running in background |
-| **mDNS Support** | Use `hostname.local` instead of IP address |
-
-**Tray behavior:**
-- Close window → Minimizes to tray (server keeps running)
-- Tray → Show → Brings window back
-- Tray → Quit → Fully stops and exits
-
-## Commands (Background Service)
+## Service Commands
 
 ```bash
-# Check if it's running
-systemctl --user status velocity
-
-# See what's happening
-journalctl --user -u velocity -f
-
-# Restart
-systemctl --user restart velocity
+systemctl --user status velocity   # check status
+journalctl --user -u velocity -f   # view logs
+systemctl --user restart velocity  # restart
 ```
 
 ## Firewall
 
-If you can't connect from your iPhone:
-
+If iPhone can't connect:
 ```bash
 sudo firewall-cmd --add-port=8080/tcp --permanent
 sudo firewall-cmd --reload
 ```
-
-## Why "Velocity Bridge"?
-
-Bridges the gap between iPhone and Linux. Fast.
 
 ## Uninstall
 
@@ -153,8 +103,8 @@ Bridges the gap between iPhone and Linux. Fast.
 systemctl --user stop velocity
 systemctl --user disable velocity
 rm ~/.config/systemd/user/velocity.service
-rm -rf ~/velocity  # or wherever you cloned it
-rm -rf ~/.local/share/velocity  # logs
+rm -rf ~/velocity
+rm -rf ~/.local/share/velocity
 ```
 
 ---
