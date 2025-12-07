@@ -213,23 +213,38 @@ async def upload_image(payload: ImagePayload):
     target_path.write_bytes(image_data)
     
     # Copy image to clipboard using wl-copy (Wayland)
-    # Save to temp file and use shell to background the process
+    # Detect format and convert HEIC to PNG for clipboard compatibility
     try:
-        # Write image to a temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+        # Detect image format by magic bytes
+        is_heic = image_data[:12].find(b'ftyp') != -1  # HEIC has 'ftyp' near start
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.tmp') as tmp:
             tmp.write(image_data)
             tmp_path = tmp.name
         
-        # Use shell to run wl-copy in background so it doesn't block
-        # wl-copy will read from file and stay running to serve clipboard
-        subprocess.Popen(
-            f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,  # Detach from parent process
-        )
-        print(f"Image clipboard started ({len(image_data)} bytes)")
+        if is_heic:
+            # Convert HEIC to PNG using ImageMagick or heif-convert
+            png_path = tmp_path + ".png"
+            # Try heif-convert first, fall back to ImageMagick
+            subprocess.Popen(
+                f'(heif-convert "{tmp_path}" "{png_path}" 2>/dev/null || convert "{tmp_path}" "{png_path}" 2>/dev/null) && '
+                f'cat "{png_path}" | wl-copy --type image/png; rm -f "{tmp_path}" "{png_path}"',
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            print(f"Image clipboard started ({len(image_data)} bytes, HEIC→PNG)")
+        else:
+            # Already PNG/JPEG, copy directly
+            subprocess.Popen(
+                f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            print(f"Image clipboard started ({len(image_data)} bytes)")
     except Exception as e:
         print(f"Failed to copy image to clipboard: {e}")
     

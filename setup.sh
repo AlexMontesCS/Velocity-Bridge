@@ -46,18 +46,18 @@ install_deps() {
     case $PKG_MANAGER in
         dnf)
             echo -ne "  Detected: Fedora/RHEL - Installing..."
-            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode &>/dev/null
+            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode libheif-tools ImageMagick &>/dev/null
             echo -e " ✅"
             ;;
         apt)
             echo -ne "  Detected: Ubuntu/Debian - Installing..."
             sudo apt-get update -qq &>/dev/null
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv wl-clipboard xclip libnotify-bin qrencode &>/dev/null
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv wl-clipboard xclip libnotify-bin qrencode libheif-examples imagemagick &>/dev/null
             echo -e " ✅"
             ;;
         pacman)
             echo -ne "  Detected: Arch Linux - Installing..."
-            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode &>/dev/null
+            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode libheif imagemagick &>/dev/null
             echo -e " ✅"
             ;;
         *)
