@@ -60,6 +60,8 @@ iPhone  ──HTTP POST──▶  Linux
 
 Your iPhone sends data to a Python server on your Linux box. The server copies it to clipboard using `wl-copy` or `xclip`. Everything stays local.
 
+**Pro Tip: Back Tap** — Go to Settings → Accessibility → Touch → Back Tap. Assign your shortcuts to Double Tap (text) and Triple Tap (image). Now just copy and tap the back of your iPhone!
+
 ## Requirements
 
 Linux: Python 3.10+, `wl-clipboard` or `xclip`, systemd  
