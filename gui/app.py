@@ -6,11 +6,54 @@ import os
 import time
 import secrets
 import qrcode
+import json
+import urllib.request
 from PIL import Image
 import socket
 from pathlib import Path
 import pystray
 from pystray import MenuItem as item
+from datetime import datetime
+
+# Config file path
+CONFIG_DIR = Path.home() / ".config" / "velocity"
+CONFIG_FILE = CONFIG_DIR / "settings.json"
+HISTORY_FILE = CONFIG_DIR / "clipboard_history.json"
+
+def load_config():
+    """Load settings from config file."""
+    default = {"notifications": True, "autostart": False}
+    try:
+        if CONFIG_FILE.exists():
+            return {**default, **json.loads(CONFIG_FILE.read_text())}
+    except:
+        pass
+    return default
+
+def save_config(config):
+    """Save settings to config file."""
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(config, indent=2))
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+def load_history():
+    """Load clipboard history."""
+    try:
+        if HISTORY_FILE.exists():
+            return json.loads(HISTORY_FILE.read_text())
+    except:
+        pass
+    return []
+
+def save_history(history):
+    """Save clipboard history (keep last 50 items)."""
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        HISTORY_FILE.write_text(json.dumps(history[-50:], indent=2))
+    except Exception as e:
+        print(f"Error saving history: {e}")
 
 # Helper to look up token
 def get_stored_token():
@@ -76,6 +119,9 @@ class VelocityApp(ctk.CTk):
 
         self.server_thread = None
         self.server_running = False
+        
+        # Load config
+        self.config = load_config()
         
         # Load or generate token
         self.token = self.get_token()
@@ -311,11 +357,29 @@ class VelocityApp(ctk.CTk):
         ctk.CTkLabel(notif_frame, text="Show notifications", font=ctk.CTkFont(size=14)).pack(side="left")
         self.notif_switch = ctk.CTkSwitch(notif_frame, text="", command=self.toggle_notifications,
                                           progress_color="#00E676", fg_color="#444444", width=50)
-        self.notif_switch.select()  # Default on
+        # Load from config
+        if self.config.get("notifications", True):
+            self.notif_switch.select()
         self.notif_switch.pack(side="right")
         
         ctk.CTkLabel(notif_card, text="Show desktop notifications when clipboard is synced", 
                     font=ctk.CTkFont(size=12), text_color="#888888").pack(anchor="w", padx=25, pady=(0, 15))
+        
+        # --- Updates Card ---
+        updates_card = ctk.CTkFrame(content_frame, fg_color="#1E1E1E", corner_radius=15, border_width=1, border_color="#333333")
+        updates_card.pack(fill="x", pady=(0, 15), ipady=10)
+        
+        ctk.CTkLabel(updates_card, text="UPDATES", font=ctk.CTkFont(size=12, weight="bold"), text_color="#666666").pack(anchor="w", padx=25, pady=(15, 10))
+        
+        update_inner = ctk.CTkFrame(updates_card, fg_color="transparent")
+        update_inner.pack(fill="x", padx=25, pady=(0, 15))
+        
+        self.update_status_label = ctk.CTkLabel(update_inner, text="Current version: v1.0.0", font=ctk.CTkFont(size=14))
+        self.update_status_label.pack(side="left")
+        
+        self.check_update_btn = ctk.CTkButton(update_inner, text="Check for Updates", width=140, height=35,
+                                               command=self.check_for_updates, fg_color="#333333", hover_color="#444444")
+        self.check_update_btn.pack(side="right")
         
         # --- About Card ---
         about_card = ctk.CTkFrame(content_frame, fg_color="#1E1E1E", corner_radius=15, border_width=1, border_color="#333333")
@@ -345,15 +409,45 @@ class VelocityApp(ctk.CTk):
             if desktop_file.exists():
                 import shutil
                 shutil.copy(desktop_file, autostart_file)
+            self.config["autostart"] = True
         else:
             # Disable autostart
             if autostart_file.exists():
                 autostart_file.unlink()
+            self.config["autostart"] = False
+        save_config(self.config)
 
     def toggle_notifications(self):
         """Toggle desktop notifications."""
-        # Store preference (could be saved to config file)
-        self.notifications_enabled = self.notif_switch.get() == 1
+        self.config["notifications"] = self.notif_switch.get() == 1
+        save_config(self.config)
+
+    def check_for_updates(self):
+        """Check GitHub for latest release."""
+        self.check_update_btn.configure(text="Checking...", state="disabled")
+        
+        def do_check():
+            try:
+                url = "https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest"
+                req = urllib.request.Request(url, headers={"User-Agent": "Velocity-Bridge"})
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                    latest = data.get("tag_name", "v1.0.0").lstrip("v")
+                    current = "1.0.0"
+                    
+                    if latest > current:
+                        self.after(0, lambda: self.update_status_label.configure(
+                            text=f"Update available: v{latest}", text_color="#00E676"))
+                    else:
+                        self.after(0, lambda: self.update_status_label.configure(
+                            text="You're up to date! (v1.0.0)", text_color="#888888"))
+            except Exception as e:
+                self.after(0, lambda: self.update_status_label.configure(
+                    text="Could not check for updates", text_color="#FF5252"))
+            finally:
+                self.after(0, lambda: self.check_update_btn.configure(text="Check for Updates", state="normal"))
+        
+        threading.Thread(target=do_check, daemon=True).start()
 
     def show_dashboard(self):
         self.qr_frame.pack_forget()
