@@ -38,7 +38,7 @@ Scan these QR codes to add the shortcuts directly:
 
 | Text Clipboard | Image Clipboard |
 |----------------|-----------------|
-| ![Text QR](assets/qr_text.png) | ![Image QR](assets/qr_image.png) |
+| <img src="assets/qr_text.png" width="200"> | <img src="assets/qr_image.png" width="200"> |
 
 After adding, edit each shortcut and replace:
 - `YOUR_IP` → your server IP (from setup.sh output)
