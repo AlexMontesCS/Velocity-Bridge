@@ -44,6 +44,8 @@ After adding, edit each shortcut and replace:
 - `YOUR_IP` → your server IP (from setup.sh output)
 - `yourtoken` → your token (from setup.sh output)
 
+**Lost your token?** Run `./info.sh` to see your config again.
+
 Or set them up manually — instructions in [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md).
 
 ## How it works
