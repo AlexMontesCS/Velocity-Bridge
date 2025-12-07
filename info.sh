@@ -21,8 +21,8 @@ if [ ! -f "$SERVICE_FILE" ]; then
     exit 1
 fi
 
-# Extract token from service file
-SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | cut -d'=' -f2)
+# Extract token from service file (format: Environment="SECURITY_TOKEN=xxx")
+SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | sed 's/.*SECURITY_TOKEN=//' | tr -d '"')
 
 # Get IP address
 IP_ADDRESS=$(hostname -I | awk '{print $1}')

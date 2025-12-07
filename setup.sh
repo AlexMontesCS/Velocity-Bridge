@@ -140,8 +140,8 @@ SERVICE_FILE="$HOME/.config/systemd/user/velocity.service"
 echo -ne "${YELLOW}[4/6]${NC} Security token..."
 
 if [ -f "$SERVICE_FILE" ]; then
-    # Extract existing token
-    SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | cut -d'=' -f2)
+    # Extract existing token (format: Environment="SECURITY_TOKEN=xxx")
+    SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | sed 's/.*SECURITY_TOKEN=//' | tr -d '"')
     if [ -n "$SECURITY_TOKEN" ]; then
         echo -e " ✅ (existing)"
     else
