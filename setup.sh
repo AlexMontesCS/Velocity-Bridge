@@ -24,54 +24,112 @@ echo -e "${NC}"
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check for required commands
-echo -e "${YELLOW}[1/6]${NC} Checking dependencies..."
-
-check_command() {
-    if command -v "$1" &> /dev/null; then
-        echo -e "  ✅ $1 found"
-        return 0
+# Detect package manager
+detect_pkg_manager() {
+    if command -v dnf &> /dev/null; then
+        echo "dnf"
+    elif command -v apt &> /dev/null; then
+        echo "apt"
+    elif command -v pacman &> /dev/null; then
+        echo "pacman"
     else
-        echo -e "  ❌ $1 not found"
-        return 1
+        echo "unknown"
     fi
 }
 
-MISSING_DEPS=0
-check_command python3 || MISSING_DEPS=1
-check_command pip || check_command pip3 || MISSING_DEPS=1
-check_command notify-send || echo -e "  ⚠️  notify-send not found (notifications disabled)"
-check_command qrencode || echo -e "  ⚠️  qrencode not found (install for terminal QR codes)"
+PKG_MANAGER=$(detect_pkg_manager)
 
-# Check for clipboard tool
-if check_command wl-copy; then
-    CLIPBOARD_TOOL="wl-copy (Wayland)"
-elif check_command xclip; then
-    CLIPBOARD_TOOL="xclip (X11)"
+# Install dependencies based on distro
+install_deps() {
+    echo -e "${YELLOW}[1/6]${NC} Installing dependencies..."
+    
+    case $PKG_MANAGER in
+        dnf)
+            echo -e "  Detected: Fedora/RHEL"
+            sudo dnf install -y python3 python3-pip wl-clipboard xclip libnotify qrencode 2>/dev/null || true
+            ;;
+        apt)
+            echo -e "  Detected: Ubuntu/Debian"
+            sudo apt update -qq
+            sudo apt install -y python3 python3-pip wl-clipboard xclip libnotify-bin qrencode 2>/dev/null || true
+            ;;
+        pacman)
+            echo -e "  Detected: Arch Linux"
+            sudo pacman -S --noconfirm python python-pip wl-clipboard xclip libnotify qrencode 2>/dev/null || true
+            ;;
+        *)
+            echo -e "  ${YELLOW}Unknown distro. Please install manually:${NC}"
+            echo -e "  python3, pip, wl-clipboard or xclip, libnotify, qrencode"
+            ;;
+    esac
+}
+
+# Check for required commands
+check_command() {
+    command -v "$1" &> /dev/null
+}
+
+# Check if we need to install deps
+NEED_INSTALL=0
+check_command python3 || NEED_INSTALL=1
+check_command pip || check_command pip3 || NEED_INSTALL=1
+check_command wl-copy || check_command xclip || NEED_INSTALL=1
+
+if [ $NEED_INSTALL -eq 1 ]; then
+    install_deps
+fi
+
+# Verify dependencies after install
+echo -e "${YELLOW}[2/6]${NC} Verifying dependencies..."
+
+MISSING_DEPS=0
+if check_command python3; then
+    echo -e "  ✅ python3"
 else
-    echo -e "  ${RED}❌ No clipboard tool found! Install wl-clipboard (Wayland) or xclip (X11)${NC}"
+    echo -e "  ❌ python3 not found"
     MISSING_DEPS=1
 fi
 
+if check_command pip || check_command pip3; then
+    echo -e "  ✅ pip"
+else
+    echo -e "  ❌ pip not found"
+    MISSING_DEPS=1
+fi
+
+if check_command wl-copy; then
+    echo -e "  ✅ wl-copy (Wayland)"
+elif check_command xclip; then
+    echo -e "  ✅ xclip (X11)"
+else
+    echo -e "  ❌ No clipboard tool found"
+    MISSING_DEPS=1
+fi
+
+check_command notify-send && echo -e "  ✅ notify-send" || echo -e "  ⚠️  notify-send (optional)"
+check_command qrencode && echo -e "  ✅ qrencode" || echo -e "  ⚠️  qrencode (optional)"
+
 if [ $MISSING_DEPS -eq 1 ]; then
-    echo -e "\n${RED}Missing required dependencies. Please install them and try again.${NC}"
-    echo -e "  Fedora: sudo dnf install python3 python3-pip wl-clipboard libnotify"
-    echo -e "  Ubuntu: sudo apt install python3 python3-pip wl-clipboard libnotify-bin"
+    echo -e "\n${RED}Some dependencies could not be installed. Please install them manually.${NC}"
     exit 1
 fi
 
 # Install Python dependencies
-echo -e "\n${YELLOW}[2/6]${NC} Installing Python packages..."
-pip install -r "$SCRIPT_DIR/requirements.txt" --quiet --user
+echo -e "\n${YELLOW}[3/6]${NC} Installing Python packages..."
+if command -v pip &> /dev/null; then
+    pip install -r "$SCRIPT_DIR/requirements.txt" --quiet --user
+else
+    pip3 install -r "$SCRIPT_DIR/requirements.txt" --quiet --user
+fi
 echo -e "  ✅ Python packages installed"
 
 # Generate secure token
-echo -e "\n${YELLOW}[3/6]${NC} Generating security token..."
+echo -e "\n${YELLOW}[4/6]${NC} Generating security token..."
 SECURITY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(12))")
 echo -e "  ✅ Token generated: ${GREEN}$SECURITY_TOKEN${NC}"
 
 # Create service file with token
-echo -e "\n${YELLOW}[4/6]${NC} Setting up systemd service..."
+echo -e "\n${YELLOW}[5/6]${NC} Setting up systemd service..."
 mkdir -p ~/.config/systemd/user
 
 # Replace the placeholder token in service file
@@ -83,7 +141,7 @@ sed -i "s|%h/velocity|$SCRIPT_DIR|g" ~/.config/systemd/user/velocity.service
 echo -e "  ✅ Service file created at ~/.config/systemd/user/velocity.service"
 
 # Enable and start service
-echo -e "\n${YELLOW}[5/6]${NC} Starting Velocity service..."
+echo -e "\n${YELLOW}[6/6]${NC} Starting Velocity service..."
 systemctl --user daemon-reload
 systemctl --user enable velocity
 systemctl --user restart velocity
@@ -100,8 +158,7 @@ else
 fi
 
 # Enable linger for persistence
-echo -e "\n${YELLOW}[6/6]${NC} Enabling service persistence..."
-loginctl enable-linger "$USER"
+loginctl enable-linger "$USER" 2>/dev/null || true
 echo -e "  ✅ Service will start on boot"
 
 # Get IP address
