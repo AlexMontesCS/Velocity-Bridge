@@ -11,6 +11,16 @@ Scan the QR codes in the README or use these links:
 
 After adding, edit each shortcut and replace `YOUR_IP` and `yourtoken` with your values.
 
+## Pro Tip: Back Tap
+
+Trigger shortcuts instantly by tapping the back of your iPhone:
+
+1. Go to **Settings → Accessibility → Touch → Back Tap**
+2. Set **Double Tap** → your Text Clipboard shortcut
+3. Set **Triple Tap** → your Image Clipboard shortcut
+
+Now just copy anything on your iPhone and double-tap the back. It syncs to Linux instantly.
+
 ---
 
 ## Manual Setup
