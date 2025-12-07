@@ -31,3 +31,13 @@ test_*.py
 
 # Keep assets
 !assets/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# AppImage build artifacts
+AppDir/
+appimagetool
+*.AppImage
