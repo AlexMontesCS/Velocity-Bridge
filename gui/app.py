@@ -440,7 +440,7 @@ class VelocityApp(ctk.CTk):
                             text=f"Update available: v{latest}", text_color="#00E676"))
                         self.after(0, lambda: self.check_update_btn.configure(
                             text="Download Update", state="normal", 
-                            command=self.open_releases_page, fg_color="#00E676", hover_color="#00C853"))
+                            command=self.download_and_update, fg_color="#00E676", hover_color="#00C853"))
                     else:
                         self.after(0, lambda: self.update_status_label.configure(
                             text="You're up to date! (v1.0.0)", text_color="#888888"))
@@ -457,6 +457,88 @@ class VelocityApp(ctk.CTk):
         """Open GitHub releases page in browser."""
         import webbrowser
         webbrowser.open("https://github.com/Trex099/Velocity-Bridge/releases")
+
+    def download_and_update(self):
+        """Download new AppImage and replace current executable."""
+        import subprocess
+        import shutil
+        
+        # Check if running as AppImage
+        appimage_path = os.environ.get("APPIMAGE")
+        if not appimage_path:
+            # Not running from AppImage, just open releases page
+            self.open_releases_page()
+            return
+        
+        self.check_update_btn.configure(text="Downloading...", state="disabled")
+        self.update_status_label.configure(text="Downloading update...", text_color="#FFAB00")
+        
+        def do_download():
+            try:
+                # Get download URL from GitHub API
+                api_url = "https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest"
+                req = urllib.request.Request(api_url, headers={"User-Agent": "Velocity-Bridge"})
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    data = json.loads(response.read().decode())
+                
+                # Find AppImage asset
+                download_url = None
+                for asset in data.get("assets", []):
+                    if "AppImage" in asset.get("name", "") and "x86_64" in asset.get("name", ""):
+                        download_url = asset.get("browser_download_url")
+                        break
+                
+                if not download_url:
+                    self.after(0, lambda: self.update_status_label.configure(
+                        text="No AppImage found in release", text_color="#FF5252"))
+                    self.after(0, lambda: self.check_update_btn.configure(
+                        text="Open Releases", state="normal", command=self.open_releases_page))
+                    return
+                
+                # Download to temp file
+                temp_path = appimage_path + ".new"
+                self.after(0, lambda: self.update_status_label.configure(
+                    text="Downloading... (this may take a minute)", text_color="#FFAB00"))
+                
+                urllib.request.urlretrieve(download_url, temp_path)
+                
+                # Make executable
+                os.chmod(temp_path, 0o755)
+                
+                # Replace old with new
+                backup_path = appimage_path + ".bak"
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                shutil.move(appimage_path, backup_path)
+                shutil.move(temp_path, appimage_path)
+                
+                self.after(0, lambda: self.update_status_label.configure(
+                    text="Update complete! Restart to apply.", text_color="#00E676"))
+                self.after(0, lambda: self.check_update_btn.configure(
+                    text="Restart Now", state="normal", command=self.restart_app,
+                    fg_color="#00E676", hover_color="#00C853"))
+                
+            except Exception as e:
+                print(f"Update error: {e}")
+                self.after(0, lambda: self.update_status_label.configure(
+                    text=f"Update failed: {str(e)[:30]}", text_color="#FF5252"))
+                self.after(0, lambda: self.check_update_btn.configure(
+                    text="Open Releases", state="normal", command=self.open_releases_page,
+                    fg_color="#333333", hover_color="#444444"))
+        
+        threading.Thread(target=do_download, daemon=True).start()
+
+    def restart_app(self):
+        """Restart the application after update."""
+        import subprocess
+        appimage_path = os.environ.get("APPIMAGE")
+        if appimage_path:
+            self.stop_server()
+            if self.tray_icon:
+                self.tray_icon.stop()
+            subprocess.Popen([appimage_path], start_new_session=True)
+            self.destroy()
+            sys.exit(0)
 
     def fade_in(self, widget, steps=5, delay=20):
         """Simple fade-in effect by animating opacity via color."""
