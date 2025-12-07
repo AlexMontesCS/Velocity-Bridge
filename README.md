@@ -100,11 +100,14 @@ sudo firewall-cmd --reload
 ## Uninstall
 
 ```bash
-systemctl --user stop velocity
-systemctl --user disable velocity
+./uninstall.sh
+```
+
+Or manually:
+```bash
+systemctl --user stop velocity && systemctl --user disable velocity
 rm ~/.config/systemd/user/velocity.service
-rm -rf ~/velocity
-rm -rf ~/.local/share/velocity
+rm -rf ~/velocity ~/.config/velocity ~/.local/share/velocity
 ```
 
 ---

@@ -438,16 +438,25 @@ class VelocityApp(ctk.CTk):
                     if latest > current:
                         self.after(0, lambda: self.update_status_label.configure(
                             text=f"Update available: v{latest}", text_color="#00E676"))
+                        self.after(0, lambda: self.check_update_btn.configure(
+                            text="Download Update", state="normal", 
+                            command=self.open_releases_page, fg_color="#00E676", hover_color="#00C853"))
                     else:
                         self.after(0, lambda: self.update_status_label.configure(
                             text="You're up to date! (v1.0.0)", text_color="#888888"))
+                        self.after(0, lambda: self.check_update_btn.configure(
+                            text="Check for Updates", state="normal"))
             except Exception as e:
                 self.after(0, lambda: self.update_status_label.configure(
                     text="Could not check for updates", text_color="#FF5252"))
-            finally:
                 self.after(0, lambda: self.check_update_btn.configure(text="Check for Updates", state="normal"))
         
         threading.Thread(target=do_check, daemon=True).start()
+
+    def open_releases_page(self):
+        """Open GitHub releases page in browser."""
+        import webbrowser
+        webbrowser.open("https://github.com/Trex099/Velocity-Bridge/releases")
 
     def fade_in(self, widget, steps=5, delay=20):
         """Simple fade-in effect by animating opacity via color."""

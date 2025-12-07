@@ -81,3 +81,15 @@ else
     echo -e "   Image: https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865"
 fi
 echo ""
+
+# Check for updates
+CURRENT_VERSION="1.0.0"
+echo -ne "🔄 ${BLUE}Checking for updates...${NC}"
+LATEST=$(curl -s --connect-timeout 5 https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest 2>/dev/null | grep '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/')
+if [ -n "$LATEST" ] && [ "$LATEST" != "$CURRENT_VERSION" ]; then
+    echo -e " ${GREEN}Update available: v$LATEST${NC}"
+    echo -e "   Run: ${YELLOW}cd ~/velocity && git pull${NC}"
+else
+    echo -e " Up to date (v$CURRENT_VERSION)"
+fi
+echo ""
