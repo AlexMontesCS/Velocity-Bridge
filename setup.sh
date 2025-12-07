@@ -135,10 +135,24 @@ else
     exit 1
 fi
 
-# Generate secure token
-echo -ne "${YELLOW}[4/6]${NC} Generating security token..."
-SECURITY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(12))")
-echo -e " ✅"
+# Generate or retrieve security token
+SERVICE_FILE="$HOME/.config/systemd/user/velocity.service"
+echo -ne "${YELLOW}[4/6]${NC} Security token..."
+
+if [ -f "$SERVICE_FILE" ]; then
+    # Extract existing token
+    SECURITY_TOKEN=$(grep "SECURITY_TOKEN=" "$SERVICE_FILE" | cut -d'=' -f2)
+    if [ -n "$SECURITY_TOKEN" ]; then
+        echo -e " ✅ (existing)"
+    else
+        SECURITY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(12))")
+        echo -e " ✅ (new)"
+    fi
+else
+    # Generate new token
+    SECURITY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(12))")
+    echo -e " ✅ (new)"
+fi
 
 # Create service file with token
 echo -ne "${YELLOW}[5/6]${NC} Setting up systemd service..."
