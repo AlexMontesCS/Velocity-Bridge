@@ -12,13 +12,25 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 
 ## Install
 
-One command:
+Choose your preferred mode:
+
+### Option A: Desktop App (GUI)
+
+A full graphical app with system tray support:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui_prototype/install-gui.sh | bash
+```
+
+Look for **"Velocity Bridge"** in your applications menu.
+
+### Option B: Background Service (systemd)
+
+Headless service that runs automatically on boot:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
 ```
-
-That's it. It clones, installs, and shows you QR codes to scan for iOS shortcuts.
 
 <details>
 <summary>Or install manually</summary>
@@ -26,7 +38,9 @@ That's it. It clones, installs, and shows you QR codes to scan for iOS shortcuts
 ```bash
 git clone https://github.com/Trex099/Velocity-Bridge.git
 cd velocity
-./setup.sh
+./setup.sh          # For background service
+# OR
+./gui_prototype/setup-gui.sh  # For GUI
 ```
 </details>
 
@@ -88,17 +102,9 @@ Everything stays on your local network.
 - Distros without systemd (Alpine, Void, Artix)
 - WSL (no display server for clipboard)
 
-## GUI Mode (Optional)
+## GUI Features
 
-Want a graphical interface instead of the background service? **One command:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install-gui.sh | bash
-```
-
-That's it! Look for **"Velocity Bridge"** in your applications menu.
-
-### GUI Features
+If you installed the Desktop App (Option A), here's what you get:
 
 | Feature | Description |
 |---------|-------------|
@@ -108,13 +114,12 @@ That's it! Look for **"Velocity Bridge"** in your applications menu.
 | **System Tray** | Minimize to tray – server keeps running in background |
 | **mDNS Support** | Use `hostname.local` instead of IP address |
 
-### How the GUI Works
+**Tray behavior:**
+- Close window → Minimizes to tray (server keeps running)
+- Tray → Show → Brings window back
+- Tray → Quit → Fully stops and exits
 
-- **Close window** → Minimizes to system tray (server keeps running)
-- **Tray → Show** → Brings window back
-- **Tray → Quit** → Fully stops server and exits
-
-The GUI runs its own server instance, independent of the systemd service. Use **either** the GUI **or** the background service, not both at once.
+> **Note:** Use either the GUI or the background service, not both at once.
 
 ## Commands (Background Service)
 

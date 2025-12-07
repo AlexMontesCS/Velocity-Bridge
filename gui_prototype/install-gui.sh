@@ -2,7 +2,7 @@
 #
 # Velocity Bridge GUI - One-Click Installer
 # Author: trex099-Arshgour
-# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install-gui.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui_prototype/install-gui.sh | bash
 #
 # This installs EVERYTHING: clones repo, installs deps, creates desktop app.
 # After running, look for "Velocity Bridge" in your applications menu.
