@@ -62,7 +62,7 @@ Scan these to add the shortcuts:
 
 Then edit each shortcut and replace `YOUR_IP` and `yourtoken` with the values from setup.
 
-Lost your token? Run `./service/info.sh`.
+Lost your token? Check `~/.config/velocity-bridge/settings.json` or open the GUI.
 
 ## How it works
 
@@ -98,6 +98,8 @@ If you picked the desktop app:
 Uses mDNS so you can use `hostname.local` instead of IP.
 
 ## Service Commands
+
+These work for all install methods (DNF, AUR, curl, or manual):
 
 ```bash
 systemctl --user status velocity   # check status
