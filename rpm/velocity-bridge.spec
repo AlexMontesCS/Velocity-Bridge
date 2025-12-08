@@ -1,5 +1,5 @@
 Name:           velocity-bridge
-Version:        1.0.3
+Version:        1.0.4
 Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
@@ -79,8 +79,9 @@ WantedBy=default.target
 EOF
 
 %post
-# Install Python dependencies
-pip3 install --user fastapi uvicorn python-multipart pillow qrcode pystray customtkinter 2>/dev/null || true
+# Install Python dependencies (system-wide, runs as root during install)
+pip3 install fastapi uvicorn python-multipart pillow qrcode pystray customtkinter 2>/dev/null || \
+  pip3 install --break-system-packages fastapi uvicorn python-multipart pillow qrcode pystray customtkinter 2>/dev/null || true
 # Update icon cache
 touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
