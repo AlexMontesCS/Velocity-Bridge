@@ -19,6 +19,7 @@ from datetime import datetime
 CONFIG_DIR = Path.home() / ".config" / "velocity-bridge"
 CONFIG_FILE = CONFIG_DIR / "settings.json"
 HISTORY_FILE = CONFIG_DIR / "clipboard_history.json"
+GITHUB_ISSUES = "https://github.com/Trex099/Velocity-Bridge/issues"
 
 def load_config():
     """Load settings from config file."""
@@ -816,7 +817,25 @@ class VelocityApp(ctk.CTk):
         self._quit_requested = True
 
 if __name__ == "__main__":
-    app_gui = VelocityApp()
-    # Start server by default
-    app_gui.start_server()
-    app_gui.mainloop()
+    try:
+        app_gui = VelocityApp()
+        # Start server by default
+        app_gui.start_server()
+        app_gui.mainloop()
+    except Exception as e:
+        error_msg = f"""\n
+=== Velocity Bridge crashed ===
+
+Something went wrong: {e}
+
+This might be a missing dependency or a system config issue.
+If you're on NixOS, make sure you ran with:
+  nix run github:Trex099/Velocity-Bridge
+
+Still stuck? Open an issue:
+  {GITHUB_ISSUES}
+
+Include the error above when reporting.
+"""
+        print(error_msg)
+        sys.exit(1)
