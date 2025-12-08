@@ -19,9 +19,15 @@ Velocity Bridge syncs your iPhone clipboard to your Linux desktop.
 Copy on iPhone, paste on Linux. Works over your local network with no cloud.
 
 %prep
-# No prep needed - we install directly from source
+# Files are already in place from git clone
+
+%build
+# Nothing to build for Python app
 
 %install
+# The git repo is cloned to the current directory by rpkg
+# We're in velocity-bridge-1.0.0 subdirectory after %prep
+
 # Create directories
 mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_bindir}
@@ -29,10 +35,10 @@ mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}%{_userunitdir}
 
-# Copy application files from repo root (Copr clones the repo)
-cp %{_sourcedir}/main.py %{buildroot}%{_datadir}/%{name}/
-cp %{_sourcedir}/requirements.txt %{buildroot}%{_datadir}/%{name}/
-cp -r %{_sourcedir}/gui/* %{buildroot}%{_datadir}/%{name}/
+# Copy application files - they're in the current directory (repo root)
+cp ../main.py %{buildroot}%{_datadir}/%{name}/
+cp ../requirements.txt %{buildroot}%{_datadir}/%{name}/
+cp -r ../gui/* %{buildroot}%{_datadir}/%{name}/
 
 # Create launcher script
 cat > %{buildroot}%{_bindir}/velocity-bridge << 'EOF'
@@ -55,7 +61,7 @@ Terminal=false
 EOF
 
 # Icon
-cp %{_sourcedir}/gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
+cp ../gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
 
 # Systemd user service
 cat > %{buildroot}%{_userunitdir}/velocity.service << 'EOF'
@@ -91,8 +97,8 @@ touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
 
 %files
-%license LICENSE
-%doc README.md SHORTCUT_SETUP.md
+%license ../LICENSE
+%doc ../README.md ../SHORTCUT_SETUP.md
 %{_bindir}/velocity-bridge
 %{_datadir}/%{name}/
 %{_datadir}/applications/velocity-bridge.desktop
