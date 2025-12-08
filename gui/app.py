@@ -103,17 +103,8 @@ class VelocityApp(ctk.CTk):
         self.geometry("900x700")  # Increased size for breathing room
         self.resizable(False, False)  # Disable resizing/maximizing
         
-        # Set window icon
-        try:
-            icon_path = Path(__file__).parent / "velocity-icon-final.png"
-            from PIL import ImageTk
-            img = Image.open(icon_path)
-            # Resize for window icon (typically 32x32 or 48x48 works best)
-            img_resized = img.resize((48, 48), Image.Resampling.LANCZOS)
-            self._icon_photo = ImageTk.PhotoImage(img_resized)
-            self.iconphoto(True, self._icon_photo)
-        except Exception as e:
-            print(f"Could not load icon: {e}")
+        # Set window icon (delayed to ensure window is initialized)
+        self.after(100, self._set_icon)
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -568,6 +559,22 @@ class VelocityApp(ctk.CTk):
 
     def show_settings(self):
         self.switch_frame(self.settings_frame)
+
+    def _set_icon(self):
+        """Set window icon after window is fully initialized."""
+        try:
+            icon_path = Path(__file__).parent / "velocity-icon-final.png"
+            from PIL import ImageTk
+            img = Image.open(icon_path)
+            # Provide multiple sizes for different contexts
+            self._icon_photos = []
+            for size in [16, 32, 48, 64, 128]:
+                img_resized = img.resize((size, size), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img_resized)
+                self._icon_photos.append(photo)
+            self.iconphoto(True, *self._icon_photos)
+        except Exception as e:
+            print(f"Could not load icon: {e}")
 
     def pulse_status(self, step=0):
         """Subtle pulse animation for status indicator."""
