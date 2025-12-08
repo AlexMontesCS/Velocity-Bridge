@@ -5,10 +5,8 @@ Summary:        iOS to Linux Clipboard Sync
 
 License:        MIT
 URL:            https://github.com/Trex099/Velocity-Bridge
-Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
-BuildRequires:  python3-devel
 Requires:       python3
 Requires:       python3-pip
 Requires:       wl-clipboard
@@ -21,7 +19,7 @@ Velocity Bridge syncs your iPhone clipboard to your Linux desktop.
 Copy on iPhone, paste on Linux. Works over your local network with no cloud.
 
 %prep
-%autosetup
+# No prep needed - we install directly from source
 
 %install
 # Create directories
@@ -31,10 +29,10 @@ mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}%{_userunitdir}
 
-# Copy application files
-cp -r main.py %{buildroot}%{_datadir}/%{name}/
-cp -r requirements.txt %{buildroot}%{_datadir}/%{name}/
-cp -r gui/* %{buildroot}%{_datadir}/%{name}/
+# Copy application files from repo root (Copr clones the repo)
+cp %{_sourcedir}/main.py %{buildroot}%{_datadir}/%{name}/
+cp %{_sourcedir}/requirements.txt %{buildroot}%{_datadir}/%{name}/
+cp -r %{_sourcedir}/gui/* %{buildroot}%{_datadir}/%{name}/
 
 # Create launcher script
 cat > %{buildroot}%{_bindir}/velocity-bridge << 'EOF'
@@ -57,7 +55,7 @@ Terminal=false
 EOF
 
 # Icon
-cp gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
+cp %{_sourcedir}/gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
 
 # Systemd user service
 cat > %{buildroot}%{_userunitdir}/velocity.service << 'EOF'
