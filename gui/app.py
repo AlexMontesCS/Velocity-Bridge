@@ -83,23 +83,34 @@ def get_stored_token():
 # Inject token into environment BEFORE importing main
 # This ensures main.py initializes with the correct token
 token = get_stored_token()
-if token:
-    os.environ["SECURITY_TOKEN"] = token
-    print(f"Loaded token from service: {token}")
+if not token:
+    # Generate new token and save it
+    token = secrets.token_hex(12)
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config_path = CONFIG_DIR / "settings.json"
+    config = {}
+    try:
+        if config_path.exists():
+            config = json.loads(config_path.read_text())
+    except:
+        pass
+    config["token"] = token
+    config_path.write_text(json.dumps(config, indent=2))
+    print(f"Generated and saved new token: {token}")
+
+os.environ["SECURITY_TOKEN"] = token
+print(f"Using token: {token}")
 
 # Add parent directory to path to allow importing main if needed
 try:
     import main
-    # Double check injection worked
-    if not main.SECURITY_TOKEN:
-        print("Injecting token directly into main module...")
-        main.SECURITY_TOKEN = token
+    # Force injection of token into main module
+    main.SECURITY_TOKEN = token
     from main import app
 except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     import main
-    if token:
-        main.SECURITY_TOKEN = token
+    main.SECURITY_TOKEN = token
     from main import app
 
 # Configuration
