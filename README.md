@@ -21,6 +21,16 @@ sudo dnf install velocity-bridge
 ```
 Then run `velocity-bridge` or find it in your applications menu.
 
+**Arch Linux (AUR)**:
+```bash
+yay -S velocity-bridge
+```
+
+**Flatpak (coming soon)**:
+```bash
+flatpak install flathub io.github.trex099.VelocityBridge
+```
+
 **Desktop App (GUI)** — one-liner for any distro:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
