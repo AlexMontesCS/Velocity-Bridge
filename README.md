@@ -26,7 +26,11 @@ Then run `velocity-bridge` or find it in your applications menu.
 yay -S velocity-bridge
 ```
 
-**Flatpak** — coming soon
+**NixOS** (flake):
+```bash
+nix run github:Trex099/Velocity-Bridge
+```
+Or install permanently: `nix profile install github:Trex099/Velocity-Bridge`
 
 **Desktop App (GUI)** — one-liner for any distro:
 ```bash
