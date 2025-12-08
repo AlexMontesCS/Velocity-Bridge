@@ -28,9 +28,9 @@ yay -S velocity-bridge
 
 **NixOS** (flake):
 ```bash
-nix run github:Trex099/Velocity-Bridge
+nix run github:Trex099/Velocity-Bridge --extra-experimental-features "nix-command flakes"
 ```
-Or install permanently: `nix profile install github:Trex099/Velocity-Bridge`
+Or install permanently: `nix profile install github:Trex099/Velocity-Bridge --extra-experimental-features "nix-command flakes"`
 
 **Desktop App (GUI)** — one-liner for any distro:
 ```bash
