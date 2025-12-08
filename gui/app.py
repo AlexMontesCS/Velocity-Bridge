@@ -106,11 +106,12 @@ class VelocityApp(ctk.CTk):
         # Set window icon
         try:
             icon_path = Path(__file__).parent / "velocity-icon-final.png"
-            img =  Image.open(icon_path)
-            self.iconphoto(True, ctk.CTkImage(img)) # This method works for tkinter windows including CTk
-            # For some WMs, we might need to use standard tkinter PhotoImage
             from PIL import ImageTk
-            self.iconphoto(True, ImageTk.PhotoImage(img))
+            img = Image.open(icon_path)
+            # Resize for window icon (typically 32x32 or 48x48 works best)
+            img_resized = img.resize((48, 48), Image.Resampling.LANCZOS)
+            self._icon_photo = ImageTk.PhotoImage(img_resized)
+            self.iconphoto(True, self._icon_photo)
         except Exception as e:
             print(f"Could not load icon: {e}")
 
