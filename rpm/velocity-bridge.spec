@@ -5,6 +5,7 @@ Summary:        iOS to Linux Clipboard Sync
 
 License:        MIT
 URL:            https://github.com/Trex099/Velocity-Bridge
+Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
 Requires:       python3
@@ -19,31 +20,28 @@ Velocity Bridge syncs your iPhone clipboard to your Linux desktop.
 Copy on iPhone, paste on Linux. Works over your local network with no cloud.
 
 %prep
-# Files are already in place from git clone
+%autosetup
 
 %build
 # Nothing to build for Python app
 
 %install
-# The git repo is cloned to the current directory by rpkg
-# We're in velocity-bridge-1.0.0 subdirectory after %prep
-
 # Create directories
 mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
-mkdir -p %{buildroot}%{_userunitdir}
+mkdir -p %{buildroot}%{_prefix}/lib/systemd/user
 
-# Copy application files - they're in the current directory (repo root)
-cp ../main.py %{buildroot}%{_datadir}/%{name}/
-cp ../requirements.txt %{buildroot}%{_datadir}/%{name}/
-cp -r ../gui/* %{buildroot}%{_datadir}/%{name}/
+# Copy application files
+cp main.py %{buildroot}%{_datadir}/%{name}/
+cp requirements.txt %{buildroot}%{_datadir}/%{name}/
+cp -r gui/* %{buildroot}%{_datadir}/%{name}/
 
 # Create launcher script
 cat > %{buildroot}%{_bindir}/velocity-bridge << 'EOF'
 #!/bin/bash
-cd %{_datadir}/velocity-bridge
+cd /usr/share/velocity-bridge
 python3 app.py "$@"
 EOF
 chmod +x %{buildroot}%{_bindir}/velocity-bridge
@@ -61,17 +59,17 @@ Terminal=false
 EOF
 
 # Icon
-cp ../gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
+cp gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
 
 # Systemd user service
-cat > %{buildroot}%{_userunitdir}/velocity.service << 'EOF'
+cat > %{buildroot}%{_prefix}/lib/systemd/user/velocity.service << 'EOF'
 [Unit]
 Description=Velocity Bridge - iOS to Linux Clipboard Sync
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%{_datadir}/velocity-bridge
+WorkingDirectory=/usr/share/velocity-bridge
 ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=5
@@ -97,13 +95,13 @@ touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
 
 %files
-%license ../LICENSE
-%doc ../README.md ../SHORTCUT_SETUP.md
+%license LICENSE
+%doc README.md SHORTCUT_SETUP.md
 %{_bindir}/velocity-bridge
 %{_datadir}/%{name}/
 %{_datadir}/applications/velocity-bridge.desktop
 %{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
-%{_userunitdir}/velocity.service
+%{_prefix}/lib/systemd/user/velocity.service
 
 %changelog
 * Sun Dec 08 2024 Velocity Bridge Team <trex099@github.com> - 1.0.0-1
