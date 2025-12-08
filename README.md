@@ -14,7 +14,14 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 
 Pick one:
 
-**Desktop App (GUI)** — has a system tray, dashboard, live logs:
+**Fedora (dnf)** — cleanest install:
+```bash
+sudo dnf copr enable trex099/velocity-bridge
+sudo dnf install velocity-bridge
+```
+Then run `velocity-bridge` or find it in your applications menu.
+
+**Desktop App (GUI)** — one-liner for any distro:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
 ```
