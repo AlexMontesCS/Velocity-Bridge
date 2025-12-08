@@ -21,6 +21,7 @@ Thumbs.db
 
 # Logs
 *.log
+*.gz
 
 # Local config (don't commit tokens!)
 .env
