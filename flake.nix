@@ -33,7 +33,7 @@
       in {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "velocity-bridge";
-          version = "1.0.3";
+          version = "1.0.8";
           
           src = ./.;
           
