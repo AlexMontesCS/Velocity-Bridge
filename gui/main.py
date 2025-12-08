@@ -48,10 +48,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Security token from environment
+# Security token from environment (will be injected by GUI if not set)
 SECURITY_TOKEN = os.environ.get("SECURITY_TOKEN", "")
-if not SECURITY_TOKEN:
-    print("⚠️  WARNING: SECURITY_TOKEN not set. All requests will be rejected!")
 
 # Upload directory
 UPLOAD_DIR = Path.home() / "Downloads" / "Velocity"
