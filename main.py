@@ -261,6 +261,94 @@ async def upload_image(payload: ImagePayload):
     }
 
 
+class MultiImagesPayload(BaseModel):
+    images: list[str]  # List of Base64-encoded images
+    token: str
+
+
+@app.post("/upload_images")
+async def upload_images(payload: MultiImagesPayload):
+    """
+    Receive multiple Base64-encoded images from iOS clipboard.
+    
+    - images: List of Base64-encoded image data
+    - token: Security token
+    
+    Behavior:
+    - 1 image: Save + copy to clipboard (same as /upload_image)
+    - Multiple images: Save all, NO clipboard, notification with count
+    """
+    validate_token(payload.token)
+    
+    if not payload.images:
+        raise HTTPException(status_code=400, detail="No images provided")
+    
+    # Ensure upload directory exists
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    
+    saved_files = []
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    for i, img_b64 in enumerate(payload.images):
+        try:
+            image_data = base64.b64decode(img_b64)
+        except Exception as e:
+            logger.warning(f"Skipping invalid image {i}: {e}")
+            continue
+        
+        # Generate filename
+        filename = f"image_{timestamp}_{i+1}.png"
+        target_path = UPLOAD_DIR / filename
+        
+        # Handle duplicates
+        if target_path.exists():
+            counter = 1
+            while target_path.exists():
+                target_path = UPLOAD_DIR / f"image_{timestamp}_{i+1}_{counter}.png"
+                counter += 1
+        
+        # Save the file
+        target_path.write_bytes(image_data)
+        saved_files.append({"filename": target_path.name, "size": len(image_data)})
+        logger.info(f"Saved image {i+1}/{len(payload.images)}: {target_path.name}")
+    
+    if not saved_files:
+        raise HTTPException(status_code=400, detail="No valid images to save")
+    
+    # If only 1 image, also copy to clipboard
+    if len(saved_files) == 1:
+        first_file = UPLOAD_DIR / saved_files[0]["filename"]
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                tmp.write(first_file.read_bytes())
+                tmp_path = tmp.name
+            subprocess.Popen(
+                f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to copy to clipboard: {e}")
+        
+        send_notification("🖼️ Image Received", f"{saved_files[0]['filename']} - Copied to clipboard!")
+        return {"status": "success", "saved": 1, "clipboard": True, "files": saved_files}
+    
+    # Multiple images: save only, no clipboard
+    send_notification(
+        f"🖼️ {len(saved_files)} Images Saved",
+        f"Saved to ~/Downloads/Velocity/"
+    )
+    
+    return {
+        "status": "success",
+        "saved": len(saved_files),
+        "clipboard": False,
+        "files": saved_files,
+    }
+
+
 @app.post("/clipboard")
 async def receive_clipboard(payload: ClipboardPayload):
     """
