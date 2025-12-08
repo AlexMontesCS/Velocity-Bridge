@@ -7,14 +7,36 @@
 # This installs EVERYTHING: clones repo, installs deps, creates desktop app.
 # After running, look for "Velocity Bridge" in your applications menu.
 
-set -e
-
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+
+# Error handling
+STEP_NAME=""
+cleanup() {
+    if [ $? -ne 0 ]; then
+        echo -e "\n${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║               ❌ Installation Failed                       ║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        if [ -n "$STEP_NAME" ]; then
+            echo -e "${RED}Failed at step: ${STEP_NAME}${NC}"
+        fi
+        echo -e "${YELLOW}Please report this issue:${NC}"
+        echo -e "${BLUE}https://github.com/Trex099/Velocity-Bridge/issues${NC}"
+        echo ""
+        echo -e "Include your distro info: ${GREEN}$(cat /etc/os-release 2>/dev/null | head -1)${NC}"
+    fi
+}
+trap cleanup EXIT
+
+error_exit() {
+    echo -e "\n${RED}Error: $1${NC}" >&2
+    exit 1
+}
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════╗"
@@ -28,15 +50,17 @@ INSTALL_DIR="${HOME}/velocity"
 REPO_URL="https://github.com/Trex099/Velocity-Bridge.git"
 
 # Check for git
+STEP_NAME="Checking for git"
 if ! command -v git &> /dev/null; then
-    echo -e "${RED}Error: git is required. Install it first.${NC}"
-    exit 1
+    error_exit "git is required but not installed. Please install git first:\n  Fedora: sudo dnf install git\n  Ubuntu: sudo apt install git\n  Arch: sudo pacman -S git\n  openSUSE: sudo zypper install git"
 fi
 
 # Detect package manager
 detect_pkg_manager() {
     if command -v dnf &> /dev/null; then
         echo "dnf"
+    elif command -v zypper &> /dev/null; then
+        echo "zypper"
     elif command -v apt &> /dev/null; then
         echo "apt"
     elif command -v pacman &> /dev/null; then
@@ -49,49 +73,61 @@ detect_pkg_manager() {
 PKG_MANAGER=$(detect_pkg_manager)
 
 # Clone or update repo
+STEP_NAME="Downloading Velocity Bridge"
 echo -e "${YELLOW}[1/6]${NC} Downloading Velocity Bridge..."
 if [ -d "$INSTALL_DIR" ]; then
     cd "$INSTALL_DIR"
     git pull --quiet 2>/dev/null || true
     echo -e "  Updated existing installation ✅"
 else
-    git clone --quiet "$REPO_URL" "$INSTALL_DIR"
+    git clone --quiet "$REPO_URL" "$INSTALL_DIR" || error_exit "Failed to clone repository. Check your internet connection."
     cd "$INSTALL_DIR"
     echo -e "  Downloaded to $INSTALL_DIR ✅"
 fi
 
 # Install system dependencies
+STEP_NAME="Installing system dependencies"
 echo -e "${YELLOW}[2/6]${NC} Installing system dependencies..."
 case $PKG_MANAGER in
     dnf)
         echo -ne "  Fedora/RHEL detected..."
-        sudo dnf install -y python3 python3-pip python3-tkinter python3-pillow-tk libappindicator-gtk3 wl-clipboard xclip xsel libnotify qrencode libheif-tools ImageMagick avahi avahi-tools nss-mdns &>/dev/null
+        sudo dnf install -y python3 python3-pip python3-tkinter python3-pillow-tk libappindicator-gtk3 wl-clipboard xclip xsel libnotify qrencode libheif-tools ImageMagick avahi avahi-tools nss-mdns &>/dev/null || error_exit "Failed to install Fedora packages. Try running with sudo manually."
+        echo -e " ✅"
+        ;;
+    zypper)
+        echo -ne "  openSUSE/SUSE detected..."
+        sudo zypper refresh &>/dev/null || true
+        sudo zypper install -y python3 python3-pip python3-tk python3-Pillow libappindicator3-1 wl-clipboard xclip xsel libnotify-tools qrencode libheif ImageMagick avahi avahi-utils &>/dev/null || error_exit "Failed to install openSUSE packages. Try running with sudo manually."
         echo -e " ✅"
         ;;
     apt)
         echo -ne "  Ubuntu/Debian detected..."
         sudo apt-get update -qq &>/dev/null
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv python3-tk python3-pil.imagetk gir1.2-ayatanaappindicator3-0.1 wl-clipboard xclip xsel libnotify-bin qrencode libheif-examples imagemagick avahi-daemon avahi-utils libnss-mdns &>/dev/null
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv python3-tk python3-pil.imagetk gir1.2-ayatanaappindicator3-0.1 wl-clipboard xclip xsel libnotify-bin qrencode libheif-examples imagemagick avahi-daemon avahi-utils libnss-mdns &>/dev/null || error_exit "Failed to install Ubuntu/Debian packages. Try running with sudo manually."
         echo -e " ✅"
         ;;
     pacman)
         echo -ne "  Arch Linux detected..."
-        sudo pacman -S --noconfirm python python-pip tk libappindicator-gtk3 wl-clipboard xclip xsel libnotify qrencode libheif imagemagick avahi nss-mdns &>/dev/null
+        sudo pacman -S --noconfirm python python-pip tk libappindicator-gtk3 wl-clipboard xclip xsel libnotify qrencode libheif imagemagick avahi nss-mdns &>/dev/null || error_exit "Failed to install Arch packages. Try running with sudo manually."
         echo -e " ✅"
         ;;
     *)
         echo -e "  ${YELLOW}Unknown distro - please install dependencies manually${NC}"
+        echo -e "  ${YELLOW}Required: python3, python3-pip, python3-tk, wl-clipboard, xclip, xsel, libnotify, avahi${NC}"
         ;;
 esac
 
 # Install Python packages
+STEP_NAME="Installing Python packages"
 echo -ne "${YELLOW}[3/6]${NC} Installing Python packages..."
 pip install --quiet fastapi uvicorn python-multipart customtkinter packaging pillow qrcode pystray 2>/dev/null || \
 pip install --quiet --break-system-packages fastapi uvicorn python-multipart customtkinter packaging pillow qrcode pystray 2>/dev/null || \
-pip3 install --quiet fastapi uvicorn python-multipart customtkinter packaging pillow qrcode pystray 2>/dev/null
+pip3 install --quiet fastapi uvicorn python-multipart customtkinter packaging pillow qrcode pystray 2>/dev/null || \
+error_exit "Failed to install Python packages. Try: pip install fastapi uvicorn customtkinter pillow qrcode pystray"
 echo -e " ✅"
 
 # Generate security token if needed
+STEP_NAME="Setting up configuration"
 echo -ne "${YELLOW}[4/6]${NC} Setting up configuration..."
 mkdir -p ~/.config/systemd/user
 mkdir -p ~/.local/share/velocity-bridge
