@@ -1,5 +1,5 @@
 Name:           velocity-bridge
-Version:        1.0.0
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
