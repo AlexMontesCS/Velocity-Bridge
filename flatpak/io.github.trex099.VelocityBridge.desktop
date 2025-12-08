@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Velocity Bridge
+Comment=iOS to Linux Clipboard Sync - Copy on iPhone, paste on Linux
+Exec=velocity-bridge
+Icon=io.github.trex099.VelocityBridge
+Type=Application
+Categories=Utility;Network;
+Terminal=false
+Keywords=clipboard;sync;ios;iphone;

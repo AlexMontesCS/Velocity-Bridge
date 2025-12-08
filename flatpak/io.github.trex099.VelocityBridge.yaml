@@ -1,0 +1,65 @@
+app-id: io.github.trex099.VelocityBridge
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: velocity-bridge
+
+finish-args:
+  # Network access for server
+  - --share=network
+  # Wayland clipboard
+  - --socket=wayland
+  # X11 fallback
+  - --socket=x11
+  - --share=ipc
+  # Desktop notifications
+  - --talk-name=org.freedesktop.Notifications
+  # System tray
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Sound
+  - --socket=pulseaudio
+  # Access Downloads folder for file uploads
+  - --filesystem=xdg-download
+  # Config directory
+  - --filesystem=~/.config/velocity-bridge:create
+  - --filesystem=~/.local/share/velocity-bridge:create
+
+modules:
+  # Python dependencies from pip
+  - name: python-deps
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-build-isolation --prefix=/app fastapi uvicorn python-multipart pillow qrcode pystray customtkinter
+    sources: []
+
+  # Main application
+  - name: velocity-bridge
+    buildsystem: simple
+    build-commands:
+      # Create directories
+      - install -d /app/share/velocity-bridge
+      - install -d /app/bin
+      
+      # Copy application files
+      - cp main.py /app/share/velocity-bridge/
+      - cp requirements.txt /app/share/velocity-bridge/
+      - cp -r gui/* /app/share/velocity-bridge/
+      
+      # Create launcher
+      - |
+        cat > /app/bin/velocity-bridge << 'EOF'
+        #!/bin/bash
+        cd /app/share/velocity-bridge
+        exec python3 app.py "$@"
+        EOF
+      - chmod +x /app/bin/velocity-bridge
+      
+      # Install desktop file and icon
+      - install -Dm644 flatpak/io.github.trex099.VelocityBridge.desktop /app/share/applications/io.github.trex099.VelocityBridge.desktop
+      - install -Dm644 gui/velocity-icon-final.png /app/share/icons/hicolor/256x256/apps/io.github.trex099.VelocityBridge.png
+      - install -Dm644 flatpak/io.github.trex099.VelocityBridge.metainfo.xml /app/share/metainfo/io.github.trex099.VelocityBridge.metainfo.xml
+    
+    sources:
+      - type: git
+        url: https://github.com/Trex099/Velocity-Bridge.git
+        tag: v1.0.2
