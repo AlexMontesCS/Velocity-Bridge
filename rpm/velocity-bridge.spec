@@ -1,5 +1,5 @@
 Name:           velocity-bridge
-Version:        1.0.6
+Version:        1.0.7
 Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
@@ -11,6 +11,7 @@ BuildArch:      noarch
 Requires:       python3
 Requires:       python3-pip
 Requires:       python3-tkinter
+Requires:       libappindicator-gtk3
 Requires:       wl-clipboard
 Requires:       libnotify
 Requires:       avahi
