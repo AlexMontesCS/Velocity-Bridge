@@ -55,8 +55,19 @@ def save_history(history):
     except Exception as e:
         print(f"Error saving history: {e}")
 
-# Helper to look up token
+# Helper to look up token - checks config.json first, then systemd service
 def get_stored_token():
+    # Check config.json first
+    config_path = CONFIG_DIR / "settings.json"
+    try:
+        if config_path.exists():
+            config = json.loads(config_path.read_text())
+            if "token" in config and config["token"]:
+                return config["token"]
+    except Exception as e:
+        print(f"Error reading token from config: {e}")
+    
+    # Fallback to systemd service file
     service_path = Path.home() / ".config/systemd/user/velocity.service"
     try:
         if service_path.exists():
@@ -66,7 +77,7 @@ def get_stored_token():
                     # Handle: Environment="SECURITY_TOKEN=xxx"
                     return line.split("SECURITY_TOKEN=")[1].split('"')[0].strip()
     except Exception as e:
-        print(f"Error reading token: {e}")
+        print(f"Error reading token from service: {e}")
     return ""
 
 # Inject token into environment BEFORE importing main
@@ -649,7 +660,17 @@ class VelocityApp(ctk.CTk):
             return "127.0.0.1"
 
     def get_token(self):
-        # Try to read from service file
+        # Try config.json first
+        config_path = CONFIG_DIR / "settings.json"
+        try:
+            if config_path.exists():
+                config = json.loads(config_path.read_text())
+                if "token" in config and config["token"]:
+                    return config["token"]
+        except:
+            pass
+        
+        # Fallback to systemd service file
         service_path = Path.home() / ".config/systemd/user/velocity.service"
         try:
             if service_path.exists():
@@ -659,7 +680,25 @@ class VelocityApp(ctk.CTk):
                         return line.split("SECURITY_TOKEN=")[1].strip('"')
         except:
             pass
-        return secrets.token_hex(12)
+        
+        # Generate new token and save it
+        new_token = secrets.token_hex(12)
+        self.save_token(new_token)
+        return new_token
+    
+    def save_token(self, token):
+        """Save token to config.json."""
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            config_path = CONFIG_DIR / "settings.json"
+            config = {}
+            if config_path.exists():
+                config = json.loads(config_path.read_text())
+            config["token"] = token
+            config_path.write_text(json.dumps(config, indent=2))
+            print(f"Saved token to config: {token}")
+        except Exception as e:
+            print(f"Error saving token: {e}")
 
     def toggle_token_visibility(self):
         if self.token_entry.cget("show") == "*":
