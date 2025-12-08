@@ -16,7 +16,7 @@ from pystray import MenuItem as item
 from datetime import datetime
 
 # Config file path
-CONFIG_DIR = Path.home() / ".config" / "velocity"
+CONFIG_DIR = Path.home() / ".config" / "velocity-bridge"
 CONFIG_FILE = CONFIG_DIR / "settings.json"
 HISTORY_FILE = CONFIG_DIR / "clipboard_history.json"
 
@@ -707,7 +707,7 @@ class VelocityApp(ctk.CTk):
             self.token_entry.configure(show="*")
 
     def start_log_watcher(self):
-        self.log_file = Path.home() / ".local/share/velocity/velocity.log"
+        self.log_file = Path.home() / ".local/share/velocity-bridge/velocity.log"
         self.last_size = 0
         self.after(1000, self.update_logs)
 

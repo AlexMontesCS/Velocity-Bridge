@@ -94,7 +94,7 @@ echo -e " ✅"
 # Generate security token if needed
 echo -ne "${YELLOW}[4/6]${NC} Setting up configuration..."
 mkdir -p ~/.config/systemd/user
-mkdir -p ~/.local/share/velocity
+mkdir -p ~/.local/share/velocity-bridge
 
 SERVICE_FILE="$HOME/.config/systemd/user/velocity.service"
 if [ -f "$SERVICE_FILE" ]; then

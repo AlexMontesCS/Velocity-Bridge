@@ -39,8 +39,8 @@ echo -e " ✅"
 
 # Remove config and logs
 echo -ne "${YELLOW}[4/4]${NC} Removing config and logs..."
-rm -rf ~/.config/velocity
-rm -rf ~/.local/share/velocity
+rm -rf ~/.config/velocity-bridge
+rm -rf ~/.local/share/velocity-bridge
 echo -e " ✅"
 
 echo ""

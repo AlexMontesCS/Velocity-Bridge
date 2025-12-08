@@ -116,7 +116,7 @@ Or manually:
 ```bash
 systemctl --user stop velocity && systemctl --user disable velocity
 rm ~/.config/systemd/user/velocity.service
-rm -rf ~/velocity ~/.config/velocity ~/.local/share/velocity
+rm -rf ~/velocity ~/.config/velocity-bridge ~/.local/share/velocity-bridge
 ```
 
 ---
