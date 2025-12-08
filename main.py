@@ -23,7 +23,7 @@ from pydantic import BaseModel
 VERSION = "1.0.0"
 
 # Setup logging
-LOG_DIR = Path.home() / ".local" / "share" / "velocity"
+LOG_DIR = Path.home() / ".local" / "share" / "velocity-bridge"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
