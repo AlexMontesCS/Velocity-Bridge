@@ -26,10 +26,7 @@ Then run `velocity-bridge` or find it in your applications menu.
 yay -S velocity-bridge
 ```
 
-**Flatpak (coming soon)**:
-```bash
-flatpak install flathub io.github.trex099.VelocityBridge
-```
+**Flatpak** — coming soon
 
 **Desktop App (GUI)** — one-liner for any distro:
 ```bash
