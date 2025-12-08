@@ -93,12 +93,24 @@ def copy_to_clipboard(text: str) -> bool:
             proc.stdin.close()
             # Don't wait for process - it stays running to serve clipboard
         elif display_server == "x11":
-            proc = subprocess.run(
-                ["xclip", "-selection", "clipboard"],
-                input=text.encode("utf-8"),
-                check=True,
-                capture_output=True,
-            )
+            # Try xsel first (faster, avoids timeout issues), fallback to xclip
+            try:
+                proc = subprocess.run(
+                    ["xsel", "--clipboard", "--input"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                    capture_output=True,
+                    timeout=5,
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                # Fallback to xclip
+                proc = subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                    capture_output=True,
+                    timeout=5,
+                )
         else:
             print(f"Unknown display server, cannot copy to clipboard")
             return False
@@ -108,6 +120,9 @@ def copy_to_clipboard(text: str) -> bool:
         return False
     except FileNotFoundError as e:
         print(f"Clipboard tool not found: {e}")
+        return False
+    except subprocess.TimeoutExpired as e:
+        print(f"Clipboard timeout: {e}")
         return False
 
 
@@ -153,6 +168,42 @@ def is_url(content: str) -> bool:
     return bool(url_pattern.match(content.strip()))
 
 
+def get_linux_clipboard() -> tuple[str, str]:
+    """
+    Read current clipboard content from Linux.
+    Returns (content_type, content) where content_type is 'text' or 'image'.
+    """
+    display = os.environ.get("WAYLAND_DISPLAY")
+    
+    try:
+        if display:
+            # Wayland - try text first
+            result = subprocess.run(
+                ["wl-paste", "--no-newline"],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return ("text", result.stdout.decode("utf-8", errors="replace"))
+        else:
+            # X11
+            result = subprocess.run(
+                ["xclip", "-selection", "clipboard", "-o"],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return ("text", result.stdout.decode("utf-8", errors="replace"))
+    except subprocess.TimeoutExpired:
+        return ("error", "Clipboard read timeout")
+    except FileNotFoundError:
+        return ("error", "Clipboard tool not found")
+    except Exception as e:
+        return ("error", str(e))
+    
+    return ("empty", "")
+
+
 class ClipboardPayload(BaseModel):
     type: Literal["text", "url"]
     content: str
@@ -163,6 +214,32 @@ class ClipboardPayload(BaseModel):
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "service": "Velocity Bridge"}
+
+
+@app.get("/get_clipboard")
+async def get_clipboard(token: str):
+    """
+    Get current Linux clipboard content.
+    Used for bidirectional sync (Linux → iPhone).
+    
+    Query params:
+    - token: Security token
+    """
+    validate_token(token)
+    
+    content_type, content = get_linux_clipboard()
+    
+    if content_type == "error":
+        raise HTTPException(status_code=500, detail=content)
+    
+    logger.info(f"Clipboard sent to iPhone: {content_type} ({len(content)} chars)")
+    
+    return {
+        "status": "success",
+        "type": content_type,
+        "content": content,
+    }
+
 
 
 class ImagePayload(BaseModel):
