@@ -243,11 +243,18 @@ class VelocityApp(ctk.CTk):
         addr_frame = ctk.CTkFrame(info_card, fg_color="transparent")
         addr_frame.pack(fill="x", padx=20, pady=(0, 10))
         ctk.CTkLabel(addr_frame, text=addr_hint, font=ctk.CTkFont(size=13), text_color="#AAAAAA").pack(anchor="w", pady=(0, 5))
-        self.ip_entry = ctk.CTkEntry(addr_frame, height=45, font=ctk.CTkFont(family="Monospace", size=14), 
-                                    border_width=0, fg_color="#111111", text_color="white")
+        addr_inner = ctk.CTkFrame(addr_frame, fg_color="transparent")
+        addr_inner.pack(fill="x")
+        
+        self.ip_entry = ctk.CTkEntry(addr_inner, height=45, font=ctk.CTkFont(family="Monospace", size=14), 
+                                    border_width=0, fg_color="#111111", text_color="white", show="*")
         self.ip_entry.insert(0, display_addr)
         self.ip_entry.configure(state="readonly")
-        self.ip_entry.pack(fill="x")
+        self.ip_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        self.ip_reveal_btn = ctk.CTkButton(addr_inner, text="Show", width=80, height=45, command=self.toggle_ip_visibility, 
+                                          fg_color="#333333", hover_color="#444444", text_color="white")
+        self.ip_reveal_btn.pack(side="right")
 
         # Token Row
         token_frame = ctk.CTkFrame(info_card, fg_color="transparent")
@@ -714,8 +721,18 @@ class VelocityApp(ctk.CTk):
     def toggle_token_visibility(self):
         if self.token_entry.cget("show") == "*":
             self.token_entry.configure(show="")
+            self.reveal_btn.configure(text="Hide")
         else:
             self.token_entry.configure(show="*")
+            self.reveal_btn.configure(text="Show")
+    
+    def toggle_ip_visibility(self):
+        if self.ip_entry.cget("show") == "*":
+            self.ip_entry.configure(show="")
+            self.ip_reveal_btn.configure(text="Hide")
+        else:
+            self.ip_entry.configure(show="*")
+            self.ip_reveal_btn.configure(text="Show")
 
     def start_log_watcher(self):
         self.log_file = Path.home() / ".local/share/velocity-bridge/velocity.log"
