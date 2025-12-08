@@ -65,18 +65,18 @@ echo -e "${YELLOW}[2/6]${NC} Installing system dependencies..."
 case $PKG_MANAGER in
     dnf)
         echo -ne "  Fedora/RHEL detected..."
-        sudo dnf install -y python3 python3-pip python3-tkinter python3-pillow-tk wl-clipboard xclip libnotify qrencode libheif-tools ImageMagick avahi avahi-tools nss-mdns &>/dev/null
+        sudo dnf install -y python3 python3-pip python3-tkinter python3-pillow-tk libappindicator-gtk3 wl-clipboard xclip libnotify qrencode libheif-tools ImageMagick avahi avahi-tools nss-mdns &>/dev/null
         echo -e " ✅"
         ;;
     apt)
         echo -ne "  Ubuntu/Debian detected..."
         sudo apt-get update -qq &>/dev/null
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv python3-tk python3-pil.imagetk wl-clipboard xclip libnotify-bin qrencode libheif-examples imagemagick avahi-daemon avahi-utils libnss-mdns &>/dev/null
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-pip python3-venv python3-tk python3-pil.imagetk gir1.2-ayatanaappindicator3-0.1 wl-clipboard xclip libnotify-bin qrencode libheif-examples imagemagick avahi-daemon avahi-utils libnss-mdns &>/dev/null
         echo -e " ✅"
         ;;
     pacman)
         echo -ne "  Arch Linux detected..."
-        sudo pacman -S --noconfirm python python-pip tk wl-clipboard xclip libnotify qrencode libheif imagemagick avahi nss-mdns &>/dev/null
+        sudo pacman -S --noconfirm python python-pip tk libappindicator-gtk3 wl-clipboard xclip libnotify qrencode libheif imagemagick avahi nss-mdns &>/dev/null
         echo -e " ✅"
         ;;
     *)
