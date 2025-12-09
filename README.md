@@ -1,5 +1,10 @@
 # Velocity Bridge
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![AUR](https://img.shields.io/aur/version/velocity-bridge)](https://aur.archlinux.org/packages/velocity-bridge)
+[![Copr](https://img.shields.io/badge/copr-trex099%2Fvelocity--bridge-blue)](https://copr.fedorainfracloud.org/coprs/trex099/velocity-bridge/)
+
 Copy on iPhone. Paste on Linux. That's it.
 
 I built this because I use an iPhone but my daily driver is Fedora. Apple's Universal Clipboard only works with Macs, so I made my own.
@@ -10,124 +15,142 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 - Copy an image → it shows up in your Linux clipboard (and saves to Downloads)
 - Works over your local network, no cloud involved
 
-## What's New in v2.0.0 🎉
+## What's New in v2.0.0
 
-- **System Tray** — close the window, app stays running in tray
-- **Check for Updates** — automatic update notifications + manual check
-- **Start at Login** — optional autostart toggle in settings
-- **History Search** — filter your clipboard history
-- **Clear All History** — one-click to wipe everything
-- Modern Tauri-based GUI (faster, lighter, native feel)
+Complete rewrite. The GUI now uses [Tauri](https://tauri.app/) instead of Python/Tk — faster startup, smaller footprint, actually looks native.
+
+- System tray — close the window, app keeps running
+- Update checker — you'll know when a new version drops
+- Start at login toggle
+- History search
+- Clear all history with one click
 
 ## Install
 
-Pick one:
-
-**Any Distro (recommended)** — one-liner:
+**Any distro** — one command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
 ```
-Then find "Velocity Bridge" in your applications menu.
 
-**Fedora (dnf)**:
+**Fedora**:
 ```bash
 sudo dnf copr enable trex099/velocity-bridge
 sudo dnf install velocity-bridge
 ```
 
-**Arch Linux (AUR)**:
+**Arch**:
 ```bash
 yay -S velocity-bridge
 ```
 
-**NixOS** (flake):
-```bash
-nix run github:Trex099/Velocity-Bridge --extra-experimental-features "nix-command flakes"
-```
+**NixOS**: The flake currently builds the Python version. For v2.0.0, grab the AppImage from releases or use the curl installer above.
 
 <details>
-<summary>Download packages directly</summary>
+<summary>Direct downloads</summary>
 
-Download from [GitHub Releases](https://github.com/Trex099/Velocity-Bridge/releases/latest):
-- **AppImage** — portable, works everywhere
-- **.deb** — Ubuntu, Debian, Pop!_OS, Mint
-- **.rpm** — Fedora, openSUSE, RHEL
+Grab from [releases](https://github.com/Trex099/Velocity-Bridge/releases/latest):
+- AppImage — works anywhere
+- .deb — Ubuntu, Debian, Mint, Pop
+- .rpm — Fedora, openSUSE
 
 </details>
 
-**Headless Server** — runs in background, no GUI:
+### Headless (no GUI)
+
+For servers or if you just don't want a window:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
 ```
-For servers or systems without a desktop. Runs as a systemd user service.
 
-<details>
-<summary>Headless service commands</summary>
-
+Runs as a systemd user service. Check on it with:
 ```bash
-systemctl --user status velocity   # check status
-systemctl --user restart velocity  # restart
-journalctl --user -u velocity -f   # view logs
+systemctl --user status velocity
+journalctl --user -u velocity -f
 ```
-
-</details>
 
 ## iOS Setup
 
-Scan these QR codes to add the shortcuts:
+Scan to add the shortcuts:
 
-| Text Clipboard | Image Clipboard |
-|----------------|-----------------|
-| <img src="assets/qr_text.png" width="200"> | <img src="assets/qr_image.png" width="200"> |
+| Text | Image |
+|------|-------|
+| <img src="assets/qr_text.png" width="180"> | <img src="assets/qr_image.png" width="180"> |
 
-Then edit each shortcut and replace `YOUR_IP` and `yourtoken` with the values from setup.
+Open each shortcut and swap `YOUR_IP` and `yourtoken` with your actual values from setup.
 
-Lost your token? Open the app → Settings → Security → Show Token.
+Can't find your token? Settings → Security → Show Token.
 
 ## How it works
 
 ```
-iPhone  ──HTTP POST──▶  Linux
-  │                       │
-  └─ text/image ──────▶ clipboard
+iPhone  ─── HTTP POST ───▶  Linux (Tauri app or Python service)
+                                     │
+                              wl-copy / xclip
+                                     │
+                                 clipboard
 ```
 
-Your iPhone sends data to a server on your Linux box. The server copies it to clipboard using `wl-copy` or `xclip`. Everything stays local.
+Everything's local. Your data never leaves your network.
 
-**Pro Tip: Back Tap** — Go to Settings → Accessibility → Touch → Back Tap. Assign your shortcuts to Double Tap (text) and Triple Tap (image). Now just copy and tap the back of your iPhone!
+**Pro tip**: Set up Back Tap on your iPhone (Settings → Accessibility → Touch → Back Tap). Double tap for text, triple tap for images. Way faster than opening the shortcuts app.
 
-## Requirements
+## Troubleshooting
 
-Linux: `wl-clipboard` or `xclip`  
-iPhone: iOS 15+ with Shortcuts app
+**iPhone can't connect**
 
-## Supported Distros
-
-Tested on Fedora 40+, Ubuntu 24.04, Arch. Should work on Debian 12+, openSUSE, Pop!_OS, Mint.
-
-## Features
-
-- **Dashboard** — server status, connection info
-- **iOS Setup** — QR codes for shortcuts
-- **History** — browse & search copied items
-- **Settings** — security token, autostart, updates
-- **System Tray** — minimize to tray, right-click menu
-
-## Firewall
-
-If iPhone can't connect:
+Firewall's probably blocking port 8080:
 ```bash
 sudo firewall-cmd --add-port=8080/tcp --permanent
 sudo firewall-cmd --reload
 ```
 
+**Clipboard not updating**
+
+Make sure you have `wl-clipboard` (Wayland) or `xclip` (X11) installed:
+```bash
+# Fedora
+sudo dnf install wl-clipboard
+
+# Ubuntu/Debian
+sudo apt install wl-clipboard
+
+# Arch
+sudo pacman -S wl-clipboard
+```
+
+**App won't start**
+
+Try running from terminal to see errors:
+```bash
+velocity-bridge
+```
+
+On some distros you might need `libwebkit2gtk-4.1` installed.
+
 ## Uninstall
 
+**GUI (curl installer)**:
 ```bash
 rm ~/.local/bin/velocity-bridge
 rm ~/.local/share/applications/velocity-bridge.desktop
 rm ~/.local/share/icons/hicolor/256x256/apps/velocity-bridge.png
 ```
+
+**Headless service**:
+```bash
+systemctl --user stop velocity
+systemctl --user disable velocity
+rm ~/.config/systemd/user/velocity.service
+rm -rf ~/velocity
+```
+
+**Package managers**: Just uninstall with your package manager (`dnf remove`, `pacman -R`, etc).
+
+## Contributing
+
+PRs welcome. If you're adding features, please test on at least Fedora or Ubuntu before submitting.
+
+Issues go [here](https://github.com/Trex099/Velocity-Bridge/issues).
 
 ---
 
