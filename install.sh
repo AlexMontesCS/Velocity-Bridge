@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Velocity Bridge v2.0.0 - One-Click Installer
+# Velocity Bridge v2.0.1 - One-Click Installer
 # Author: Trex099
 # Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
 #
@@ -16,7 +16,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║           🚀 Velocity Bridge v2.0.0 Installer             ║"
+echo "║           🚀 Velocity Bridge v2.0.1 Installer             ║"
 echo "║      iOS → Linux Clipboard & Image Sync                   ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
@@ -36,13 +36,13 @@ APP_DIR="$HOME/.local/share/applications"
 mkdir -p "$BIN_DIR" "$ICON_DIR" "$APP_DIR"
 
 # Download URL (update this when you create the release)
-RELEASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v2.0.0"
+RELEASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v2.0.1"
 BINARY_NAME="velocity-bridge"
 
 echo -e "${YELLOW}Downloading Velocity Bridge...${NC}"
 
 # Download the binary (AppImage is more reliable as it bundles dependencies)
-curl -fsSL "$RELEASE_URL/Velocity-Bridge_2.0.0_amd64.AppImage" -o "$BIN_DIR/$BINARY_NAME"
+curl -fsSL "$RELEASE_URL/Velocity-Bridge_2.0.1_amd64.AppImage" -o "$BIN_DIR/$BINARY_NAME"
 chmod +x "$BIN_DIR/$BINARY_NAME"
 
 # Download icon
