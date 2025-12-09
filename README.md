@@ -1,7 +1,9 @@
 # Velocity Bridge
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+
+
 [![AUR](https://img.shields.io/aur/version/velocity-bridge)](https://aur.archlinux.org/packages/velocity-bridge)
 [![Copr](https://img.shields.io/badge/copr-trex099%2Fvelocity--bridge-blue)](https://copr.fedorainfracloud.org/coprs/trex099/velocity-bridge/)
 
@@ -154,4 +156,4 @@ Issues go [here](https://github.com/Trex099/Velocity-Bridge/issues).
 
 ---
 
-MIT License
+GPL-3.0 License
