@@ -46,3 +46,8 @@ AppDir/
 appimagetool
 *.AppImage
 *.rpm
+release-v2.0.0/
+*.AppImage
+velocity_tauri/src-tauri/target/
+velocity_tauri/src-tauri/binaries/
+velocity_tauri/src-tauri/server-*

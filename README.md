@@ -10,16 +10,30 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 - Copy an image → it shows up in your Linux clipboard (and saves to Downloads)
 - Works over your local network, no cloud involved
 
+## What's New in v2.0.0 🎉
+
+- **System Tray** — close the window, app stays running in tray
+- **Check for Updates** — automatic update notifications + manual check
+- **Start at Login** — optional autostart toggle in settings
+- **History Search** — filter your clipboard history
+- **Clear All History** — one-click to wipe everything
+- Modern Tauri-based GUI (faster, lighter, native feel)
+
 ## Install
 
 Pick one:
 
-**Fedora (dnf)** — cleanest install:
+**Any Distro (recommended)** — one-liner:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
+```
+Then find "Velocity Bridge" in your applications menu.
+
+**Fedora (dnf)**:
 ```bash
 sudo dnf copr enable trex099/velocity-bridge
 sudo dnf install velocity-bridge
 ```
-Then run `velocity-bridge` or find it in your applications menu.
 
 **Arch Linux (AUR)**:
 ```bash
@@ -30,35 +44,20 @@ yay -S velocity-bridge
 ```bash
 nix run github:Trex099/Velocity-Bridge --extra-experimental-features "nix-command flakes"
 ```
-Or install permanently: `nix profile install github:Trex099/Velocity-Bridge --extra-experimental-features "nix-command flakes"`
-
-**Desktop App (GUI)** — one-liner for any distro:
-```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/install-gui.sh | bash
-```
-Then find "Velocity Bridge" in your applications menu.
-
-**Background Service** — headless, runs on boot:
-```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
-```
 
 <details>
-<summary>Manual install</summary>
+<summary>Download packages directly</summary>
 
-```bash
-git clone https://github.com/Trex099/Velocity-Bridge.git
-cd Velocity-Bridge
-./service/setup.sh  # background service
-./gui/setup-gui.sh  # or GUI
-```
+Download from [GitHub Releases](https://github.com/Trex099/Velocity-Bridge/releases/latest):
+- **AppImage** — portable, works everywhere
+- **.deb** — Ubuntu, Debian, Pop!_OS, Mint
+- **.rpm** — Fedora, openSUSE, RHEL
+
 </details>
-
-After setup you'll see your server URL, token, and QR codes. Use either GUI or the service, not both.
 
 ## iOS Setup
 
-Scan these to add the shortcuts:
+Scan these QR codes to add the shortcuts:
 
 | Text Clipboard | Image Clipboard |
 |----------------|-----------------|
@@ -66,7 +65,7 @@ Scan these to add the shortcuts:
 
 Then edit each shortcut and replace `YOUR_IP` and `yourtoken` with the values from setup.
 
-Lost your token? Check `~/.config/velocity-bridge/settings.json` or open the GUI.
+Lost your token? Open the app → Settings → Security → Show Token.
 
 ## How it works
 
@@ -76,40 +75,26 @@ iPhone  ──HTTP POST──▶  Linux
   └─ text/image ──────▶ clipboard
 ```
 
-Your iPhone sends data to a Python server on your Linux box. The server copies it to clipboard using `wl-copy` or `xclip`. Everything stays local.
+Your iPhone sends data to a server on your Linux box. The server copies it to clipboard using `wl-copy` or `xclip`. Everything stays local.
 
 **Pro Tip: Back Tap** — Go to Settings → Accessibility → Touch → Back Tap. Assign your shortcuts to Double Tap (text) and Triple Tap (image). Now just copy and tap the back of your iPhone!
 
 ## Requirements
 
-Linux: Python 3.10+, `wl-clipboard` or `xclip`, systemd  
+Linux: `wl-clipboard` or `xclip`  
 iPhone: iOS 15+ with Shortcuts app
 
 ## Supported Distros
 
-Tested on Fedora 40+. Should work on Ubuntu 22.04+, Debian 12+, Arch, openSUSE, Pop!_OS, Mint.
+Tested on Fedora 40+, Ubuntu 24.04, Arch. Should work on Debian 12+, openSUSE, Pop!_OS, Mint.
 
-Won't work on distros without systemd (Alpine, Void) or WSL.
+## Features
 
-## GUI
-
-If you picked the desktop app:
 - **Dashboard** — server status, connection info
-- **QR Shortcuts** — scan to setup iOS
-- **Live Logs** — see clipboard activity
-- **System Tray** — close window to minimize, right-click for quit
-
-Uses mDNS so you can use `hostname.local` instead of IP.
-
-## Service Commands
-
-These work for all install methods (DNF, AUR, curl, or manual):
-
-```bash
-systemctl --user status velocity   # check status
-journalctl --user -u velocity -f   # view logs
-systemctl --user restart velocity  # restart
-```
+- **iOS Setup** — QR codes for shortcuts
+- **History** — browse & search copied items
+- **Settings** — security token, autostart, updates
+- **System Tray** — minimize to tray, right-click menu
 
 ## Firewall
 
@@ -122,14 +107,9 @@ sudo firewall-cmd --reload
 ## Uninstall
 
 ```bash
-./service/uninstall.sh
-```
-
-Or manually:
-```bash
-systemctl --user stop velocity && systemctl --user disable velocity
-rm ~/.config/systemd/user/velocity.service
-rm -rf ~/velocity ~/.config/velocity-bridge ~/.local/share/velocity-bridge
+rm ~/.local/bin/velocity-bridge
+rm ~/.local/share/applications/velocity-bridge.desktop
+rm ~/.local/share/icons/hicolor/256x256/apps/velocity-bridge.png
 ```
 
 ---
