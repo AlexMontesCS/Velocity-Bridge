@@ -47,7 +47,7 @@ echo -e "${NC}"
 
 # Default install directory
 INSTALL_DIR="${HOME}/velocity"
-REPO_URL="https://github.com/Trex099/Velocity-Bridge.git"
+REPO_URL="https://github.com/Trex099/velocitydev.git"
 
 # Check for git
 STEP_NAME="Checking for git"
