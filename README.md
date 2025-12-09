@@ -1,6 +1,6 @@
 # Velocity Bridge
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 
