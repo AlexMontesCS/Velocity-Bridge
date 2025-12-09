@@ -41,8 +41,8 @@ BINARY_NAME="velocity-bridge"
 
 echo -e "${YELLOW}Downloading Velocity Bridge...${NC}"
 
-# Download the binary
-curl -fsSL "$RELEASE_URL/velocity-bridge-linux-x86_64" -o "$BIN_DIR/$BINARY_NAME"
+# Download the binary (AppImage is more reliable as it bundles dependencies)
+curl -fsSL "$RELEASE_URL/Velocity-Bridge_2.0.0_amd64.AppImage" -o "$BIN_DIR/$BINARY_NAME"
 chmod +x "$BIN_DIR/$BINARY_NAME"
 
 # Download icon

@@ -20,6 +20,11 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
+            // Start the Python sidecar
+            use tauri_plugin_shell::ShellExt;
+            let sidecar_command = app.shell().sidecar("server").map_err(|e| e.to_string())?;
+            let (mut _rx, _child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
+
             // Create tray menu
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

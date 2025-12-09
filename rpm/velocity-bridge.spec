@@ -5,7 +5,7 @@ Summary:        iOS to Linux Clipboard Sync
 
 License:        MIT
 URL:            https://github.com/Trex099/Velocity-Bridge
-Source0:        https://github.com/Trex099/Velocity-Bridge/releases/download/v%{version}/velocity-bridge-linux-x86_64
+Source0: https://github.com/Trex099/Velocity-Bridge/releases/download/v%{version}/Velocity-Bridge_%{version}_amd64.AppImage
 Source1:        https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/velocity-icon-final.png
 
 BuildArch:      x86_64
