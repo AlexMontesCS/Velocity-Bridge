@@ -84,15 +84,28 @@ SESSION_STATS = {
 }
 
 def load_config() -> dict:
-    """Load settings from config file."""
+    """Load settings from config file. Generate token if missing."""
+    import json
+    import secrets
     config_file = CONFIG_DIR / "settings.json"
+    config = {}
+    
     try:
         if config_file.exists():
-            import json
-            return json.loads(config_file.read_text())
+            config = json.loads(config_file.read_text())
     except Exception:
         pass
-    return {}
+    
+    # Generate token if it doesn't exist
+    if not config.get("token") and not config.get("security_token"):
+        config["token"] = secrets.token_hex(12)
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            config_file.write_text(json.dumps(config, indent=2))
+        except Exception:
+            pass
+    
+    return config
 
 # Security token from environment or config (AUTH FIX)
 # Support both 'token' (from curl/dnf/aur installs) and 'security_token' (legacy)
