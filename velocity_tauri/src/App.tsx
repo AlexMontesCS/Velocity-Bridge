@@ -27,6 +27,7 @@ interface ServerStatus {
   token: string;
   clients: number;
   requests: number;
+  install_method?: "appimage" | "native";
 }
 
 function App() {
@@ -206,9 +207,6 @@ function App() {
   });
 
   // Check for updates from GitHub releases
-  const CURRENT_VERSION = "2.0.0"; // Match your release version
-
-  // Compare semantic versions: returns true if a > b
   const isNewerVersion = (a: string, b: string): boolean => {
     const partsA = a.split('.').map(Number);
     const partsB = b.split('.').map(Number);
@@ -222,23 +220,26 @@ function App() {
   };
 
   const checkForUpdates = async () => {
+    // Current version comes from backend status or fallback to hardcoded if not connected
+    const currentVersion = serverStatus?.version || "2.0.0";
+
     try {
       const response = await fetch("https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest");
       if (response.ok) {
         const data = await response.json();
         const latestVersion = data.tag_name?.replace(/^v/, "") || "";
-        // Only show update if GitHub version is actually greater
-        if (latestVersion && isNewerVersion(latestVersion, CURRENT_VERSION)) {
+
+        if (latestVersion && isNewerVersion(latestVersion, currentVersion)) {
           setUpdateInfo({
             available: true,
             latestVersion,
-            currentVersion: CURRENT_VERSION
+            currentVersion
           });
         } else {
           setUpdateInfo({
             available: false,
-            latestVersion: latestVersion || CURRENT_VERSION,
-            currentVersion: CURRENT_VERSION
+            latestVersion: latestVersion || currentVersion,
+            currentVersion
           });
         }
       }
@@ -247,11 +248,13 @@ function App() {
     }
   };
 
-  // Check for updates on startup
+  // Check for updates on startup or when backend connects
   useEffect(() => {
-    checkForUpdates();
+    if (serverStatus?.version) {
+      checkForUpdates();
+    }
     checkAutostart();
-  }, []);
+  }, [serverStatus]);
 
   // Check if autostart is enabled
   const checkAutostart = async () => {
@@ -361,12 +364,18 @@ X-GNOME-Autostart-enabled=true`;
               🎉 <strong>Update available!</strong> Version {updateInfo.latestVersion} is now available (you have {updateInfo.currentVersion})
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
-                style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-              >
-                Download
-              </button>
+              {serverStatus?.install_method === "native" ? (
+                <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '4px' }}>
+                  Update via Package Manager (yay/dnf)
+                </span>
+              ) : (
+                <button
+                  onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
+                  style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Download & Install
+                </button>
+              )}
               <button
                 onClick={() => setUpdateInfo(null)}
                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px' }}
@@ -625,15 +634,26 @@ X-GNOME-Autostart-enabled=true`;
                 <div className="setting-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                     <label>Current Version</label>
-                    <span style={{ fontFamily: 'monospace', background: '#f0f0f0', padding: '4px 8px', borderRadius: '4px' }}>v{CURRENT_VERSION}</span>
+                    <span style={{ fontFamily: 'monospace', background: '#f0f0f0', padding: '4px 8px', borderRadius: '4px' }}>
+                      v{serverStatus?.version || "..."}
+                      {serverStatus?.install_method ? ` (${serverStatus.install_method})` : ""}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <button
-                      onClick={checkForUpdates}
-                      style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer', fontSize: '14px' }}
-                    >
-                      Check for Updates
-                    </button>
+
+                    {serverStatus?.install_method === "native" && updateInfo?.available ? (
+                      <div style={{ color: '#007AFF', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>ℹ️ Use <code>yay -Syu</code> or <code>dnf upgrade</code> to update</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={checkForUpdates}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer', fontSize: '14px' }}
+                      >
+                        Check for Updates
+                      </button>
+                    )}
+
                     {updateInfo && !updateInfo.available && (
                       <span style={{ color: '#22c55e', fontSize: '13px' }}>✓ You're up to date!</span>
                     )}

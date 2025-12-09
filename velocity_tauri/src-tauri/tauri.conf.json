@@ -34,5 +34,13 @@
     "externalBin": [
       "server"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Trex099/Velocity-Bridge/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBMkQwQUE5QjQzNjZBRDMKUldUVGFqYTBxUW90Nm11bk1ya2h2eVQ1dWF4QmsrOXNhK2QvOW5NdWJoQXA5WlF4MW5TUzlEWHkK"
+    }
   }
 }

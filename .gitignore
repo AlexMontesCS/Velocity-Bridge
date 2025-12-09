@@ -51,3 +51,4 @@ release-v2.0.0/
 velocity_tauri/src-tauri/target/
 velocity_tauri/src-tauri/binaries/
 velocity_tauri/src-tauri/server-*
+NEXT_RELEASE_CONTEXT.md

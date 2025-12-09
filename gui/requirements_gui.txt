@@ -1,6 +1,0 @@
-customtkinter
-packaging
-pillow
-qrcode
-pystray
-watchdog

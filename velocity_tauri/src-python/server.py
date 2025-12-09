@@ -636,6 +636,10 @@ async def get_status(request: Request):
     import socket
     hostname = socket.gethostname()
 
+    # Detect installation method
+    # If the APPIMAGE environment variable is set, it's an AppImage (or Curl install)
+    install_method = "appimage" if os.environ.get("APPIMAGE") else "native"
+
     return {
         "status": "running",
         "version": VERSION,
@@ -645,6 +649,7 @@ async def get_status(request: Request):
         "token": SECURITY_TOKEN,  # Send token so UI can display it
         "clients": len(SESSION_STATS["unique_ips"]),
         "requests": SESSION_STATS["request_count"],
+        "install_method": install_method,
     }
 
 
