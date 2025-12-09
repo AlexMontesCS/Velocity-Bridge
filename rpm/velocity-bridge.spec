@@ -12,6 +12,7 @@ BuildArch:      x86_64
 Requires:       webkit2gtk4.1
 Requires:       gtk3
 Requires:       wl-clipboard
+Requires:       libappindicator-gtk3
 
 %description
 Velocity Bridge syncs your iPhone clipboard to your Linux desktop.
