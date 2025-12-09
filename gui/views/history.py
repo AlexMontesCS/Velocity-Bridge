@@ -35,16 +35,22 @@ class HistoryFrame(ctk.CTkFrame):
         self.current_items = {} # Map timestamp -> widget instance
         self.current_page = 1
         self.items_per_page = 15
-        self.all_display_items = []
+        
+        # Cache
+        self.raw_history_cache = []  # Full data from disk
+        self.filtered_cache = []     # Filtered data
+        self.last_query = ""         # Tracks filter changes
+        
+        self.all_display_items = []  # DEPRECATED/Legacy ref
         
         self._setup_ui()
         
         # Initial load
-        self.after(100, self.refresh)
+        self.after(100, lambda: self.refresh(load_from_disk=True))
         
         # Schedule observer
         if hasattr(app, 'observer'):
-            app.observer.schedule_file(HISTORY_FILE, lambda: self.after(0, self.refresh))
+            app.observer.schedule_file(HISTORY_FILE, lambda: self.after(0, lambda: self.refresh(load_from_disk=True)))
 
     def _setup_ui(self):
         # Header
@@ -86,7 +92,7 @@ class HistoryFrame(ctk.CTkFrame):
 
         # Refresh Action
         self.refresh_btn = ctk.CTkButton(controls, text="Refresh", width=80, height=38,
-                                       command=lambda: self.refresh(force=True),
+                                       command=lambda: self.refresh(load_from_disk=True),
                                        fg_color=COLOR_SURFACE, 
                                        hover_color=COLOR_HOVER,
                                        text_color=COLOR_TEXT_PRIMARY,
@@ -100,9 +106,6 @@ class HistoryFrame(ctk.CTkFrame):
         
         # Pagination Controls
         self.controls_frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        
-        # We need to pack this AFTER items, but since items are packed dynamically, 
-        # let's just create it. `refresh` will manage its position.
         
         self.btn_prev = ctk.CTkButton(self.controls_frame, text="< Prev", width=80, height=32,
                                     fg_color=COLOR_SURFACE, hover_color=COLOR_HOVER,
@@ -148,25 +151,37 @@ class HistoryFrame(ctk.CTkFrame):
         self.current_page = 1
         if hasattr(self, '_search_job'):
             self.after_cancel(self._search_job)
-        self._search_job = self.after(200, self.refresh)
+        self._search_job = self.after(200, lambda: self.refresh(load_from_disk=False))
 
     def next_page(self):
         self.current_page += 1
-        self.refresh()
+        self.refresh(load_from_disk=False)
 
     def prev_page(self):
         if self.current_page > 1:
             self.current_page -= 1
-            self.refresh()
+            self.refresh(load_from_disk=False)
 
-    def refresh(self, force=False):
-        """Smart Refresh: Diffs content with Pagination."""
-        full_history = load_history()
+    def refresh(self, load_from_disk=False):
+        """Smart Refresh: Reads File only if needed. Renders from Cache."""
+        
+        # 1. Update Data Cache
+        if load_from_disk:
+             # This is the blocking I/O part. 
+             # For massive files, this should eventually act async, 
+             # but just avoiding it on page flip solves the GUI lag.
+             self.raw_history_cache = load_history()
+        
+        # 2. Filter / Search Logic
         query = self.app.history_search_var.get().lower()
         
-        # Filter first
-        self.all_display_items = filter_items(full_history, query)
-        total_items = len(self.all_display_items)
+        # If cache or query changed, re-filter
+        if load_from_disk or query != self.last_query:
+            self.filtered_cache = filter_items(self.raw_history_cache, query)
+            self.last_query = query
+            
+        # 3. Calculate Pages
+        total_items = len(self.filtered_cache)
         total_pages = (total_items + self.items_per_page - 1) // self.items_per_page
         if total_pages < 1: total_pages = 1
         
@@ -174,56 +189,44 @@ class HistoryFrame(ctk.CTkFrame):
         if self.current_page > total_pages: self.current_page = total_pages
         if self.current_page < 1: self.current_page = 1
         
-        # Slice for current page
+        # 4. Slice for View
         start_idx = (self.current_page - 1) * self.items_per_page
         end_idx = start_idx + self.items_per_page
         
-        # Remember: Newest items at END of logic, but we render reversed?
-        # Let's keep logic consistent with previous step.
-        # We reversed `all_display_items` (which comes from oldest->newest file)
-        # So `reversed_all[0]` is the newest.
+        # Reverse logic: `raw_history` (from file) is Oldest->Newest (typically append).
+        # We want to view Newest first.
+        # So we reverse the *Filtered* list.
+        # NOTE: Reversing a large list is cheap (list copy) compared to I/O.
         
-        reversed_all = list(reversed(self.all_display_items))
-        visible_items = reversed_all[start_idx:end_idx]
+        reversed_filtered = list(reversed(self.filtered_cache))
+        visible_items = reversed_filtered[start_idx:end_idx]
         
-        # Update Labels
+        # 5. Update UI Labels/Buttons
         self.count_label.configure(text=f"Page {self.current_page} of {total_pages} ({total_items} items)")
         self.lbl_page.configure(text=f"Page {self.current_page} of {total_pages}")
         
-        # Update Buttons
         self.btn_prev.configure(state="normal" if self.current_page > 1 else "disabled")
         self.btn_next.configure(state="normal" if self.current_page < total_pages else "disabled")
 
-        # Diffing Logic
+        # 6. Diffing Logic (View Updates)
         new_ids = {item.get("timestamp"): item for item in visible_items}
         current_ids = set(self.current_items.keys())
         
-        to_add = [item for ts, item in new_ids.items() if ts not in current_ids]
         to_remove = current_ids - set(new_ids.keys())
+        to_add = [item for ts, item in new_ids.items() if ts not in current_ids]
         
-        # Remove items not in current page
+        # Remove old
         for ts in to_remove:
             if ts in self.current_items:
                 widget = self.current_items.pop(ts)
                 widget.destroy()
 
-        # Add items
-        # Sort additions by timestamp ASC (Oldest->Newest within usage)
-        # so when we pack `before=first`, they stack correctly?
-        # Actually logic is tricky when jumping pages.
-        # Simplest consistent visual:
-        # If we just switched pages, `to_remove` is EVERYTHING from old page.
-        # `to_add` is EVERYTHING from new page.
-        # We effectively clear and rebuild.
-        # BUT Diffing saves us if existing items overlap (rare in pagination unless 1 item shift).
-        
-        # Sorted Add: Oldest first in the current selection
+        # Add new (Sorted Old->New logic so pack order is correct)
         sorted_add = sorted(to_add, key=lambda x: x.get("timestamp", ""))
         
-        # Get anchor
+        # Find Anchor (first content widget)
         first_child = None
         children = self.container.winfo_children()
-        # Ignore pagination controls for logic
         content_children = [c for c in children if c != self.controls_frame]
         if content_children:
             first_child = content_children[0]
@@ -241,7 +244,7 @@ class HistoryFrame(ctk.CTkFrame):
                 first_child = card
             self.current_items[item.get("timestamp")] = card
 
-        # Manage Controls Frame position (Always bottom)
+        # Ensure controls at bottom
         self.controls_frame.pack_forget()
         if total_pages > 1:
             self.controls_frame.pack(pady=20)
@@ -300,7 +303,6 @@ class HistoryFrame(ctk.CTkFrame):
         actions = ctk.CTkFrame(card, fg_color="transparent")
         actions.grid(row=0, column=2, rowspan=2, padx=15)
         
-        # Small buttons
         btn_copy = ctk.CTkButton(actions, text="Copy", width=50, height=26,
                                font=ctk.CTkFont(size=11, weight="bold"),
                                fg_color=COLOR_BORDER, hover_color=COLOR_HOVER,
