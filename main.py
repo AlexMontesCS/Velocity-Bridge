@@ -18,9 +18,13 @@ from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-VERSION = "1.0.0"
+from version import __version__ as VERSION
 
 # Setup logging
 LOG_DIR = Path.home() / ".local" / "share" / "velocity-bridge"
@@ -35,11 +39,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger("velocity")
 
+# Rate limiter - 30 requests per minute per IP
+limiter = Limiter(key_func=get_remote_address)
+
+# Filter out /stats from access logs to reduce spam
+class EndpointFilter(logging.Filter):
+    def filter(self, record):
+        return "/stats" not in record.getMessage()
+
+# Apply filter to uvicorn access logger
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 app = FastAPI(
     title="Velocity Bridge",
     description="LAN-only clipboard sync between iOS and Linux",
     version=VERSION,
 )
+
+# Add rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,10 +73,109 @@ SECURITY_TOKEN = os.environ.get("SECURITY_TOKEN", "")
 # Upload directory
 UPLOAD_DIR = Path.home() / "Downloads" / "Velocity"
 
+# Config directory for history
+CONFIG_DIR = Path.home() / ".config" / "velocity-bridge"
+HISTORY_FILE = CONFIG_DIR / "clipboard_history.json"
+SESSION_FILE = CONFIG_DIR / "session_stats.json"
 
-def validate_token(token: str) -> None:
+# Session tracking (in-memory, persisted to file)
+SESSION_STATS = {
+    "request_count": 0,
+    "unique_ips": set(),
+    "last_request": None,
+    "recent_requests": [],  # Last 10 requests for activity feed
+}
+
+
+def load_config() -> dict:
+    """Load settings from config file."""
+    config_file = CONFIG_DIR / "settings.json"
+    try:
+        if config_file.exists():
+            import json
+            return json.loads(config_file.read_text())
+    except Exception:
+        pass
+    return {}
+
+
+def is_local_ip(ip: str) -> bool:
+    """Check if an IP is from local network."""
+    if not ip or ip == "unknown":
+        return False
+    # Localhost
+    if ip in ("127.0.0.1", "::1", "localhost"):
+        return True
+    # Private networks: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
+    parts = ip.split(".")
+    if len(parts) == 4:
+        try:
+            if parts[0] == "10":
+                return True
+            if parts[0] == "172" and 16 <= int(parts[1]) <= 31:
+                return True
+            if parts[0] == "192" and parts[1] == "168":
+                return True
+        except ValueError:
+            pass
+    return False
+
+
+def check_ip_whitelist(request: Request) -> None:
+    """Check if IP whitelist is enabled and validate the client IP."""
+    config = load_config()
+    if config.get("ip_whitelist_enabled", False):
+        client_ip = request.client.host if request.client else "unknown"
+        if not is_local_ip(client_ip):
+            logger.warning(f"Connection blocked - non-local IP: {client_ip}")
+            raise HTTPException(status_code=403, detail="Access restricted to local network")
+
+
+def track_request(request: Request, endpoint: str) -> None:
+    """Track request for session stats."""
+    client_ip = request.client.host if request.client else "unknown"
+    SESSION_STATS["request_count"] += 1
+    SESSION_STATS["unique_ips"].add(client_ip)
+    SESSION_STATS["last_request"] = datetime.now().isoformat()
+    
+    # Add to recent requests (keep last 10)
+    SESSION_STATS["recent_requests"].append({
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "ip": client_ip,
+        "endpoint": endpoint,
+    })
+    SESSION_STATS["recent_requests"] = SESSION_STATS["recent_requests"][-10:]
+
+
+def load_history() -> list:
+    """Load clipboard history from file."""
+    try:
+        if HISTORY_FILE.exists():
+            import json
+            return json.loads(HISTORY_FILE.read_text())
+    except Exception:
+        pass
+    return []
+
+
+def save_history(history: list) -> None:
+    """Save clipboard history to file (keep last 50 items)."""
+    try:
+        import json
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        HISTORY_FILE.write_text(json.dumps(history[-50:], indent=2))
+    except Exception as e:
+        logger.warning(f"Failed to save history: {e}")
+
+
+def validate_token(token: str, request: Request = None) -> None:
     """Validate the security token. Raises 403 if invalid."""
     if not SECURITY_TOKEN or token != SECURITY_TOKEN:
+        # Log failed attempt with client IP
+        client_ip = "unknown"
+        if request:
+            client_ip = request.client.host if request.client else "unknown"
+        logger.warning(f"Authentication failed from IP: {client_ip}")
         raise HTTPException(status_code=403, detail="Invalid security token")
 
 
@@ -216,8 +334,23 @@ async def root():
     return {"status": "ok", "service": "Velocity Bridge"}
 
 
+@app.get("/stats")
+async def get_stats():
+    """
+    Get session statistics for GUI.
+    No auth required - only returns counts, not sensitive data.
+    """
+    return {
+        "request_count": SESSION_STATS["request_count"],
+        "unique_ips": len(SESSION_STATS["unique_ips"]),
+        "last_request": SESSION_STATS["last_request"],
+        "recent_requests": SESSION_STATS["recent_requests"],
+    }
+
+
 @app.get("/get_clipboard")
-async def get_clipboard(token: str):
+@limiter.limit("30/minute")
+async def get_clipboard(request: Request, token: str):
     """
     Get current Linux clipboard content.
     Used for bidirectional sync (Linux → iPhone).
@@ -225,7 +358,7 @@ async def get_clipboard(token: str):
     Query params:
     - token: Security token
     """
-    validate_token(token)
+    validate_token(token, request)
     
     content_type, content = get_linux_clipboard()
     
@@ -249,7 +382,8 @@ class ImagePayload(BaseModel):
 
 
 @app.post("/upload_image")
-async def upload_image(payload: ImagePayload):
+@limiter.limit("20/minute")
+async def upload_image(request: Request, payload: ImagePayload):
     """
     Receive Base64-encoded image from iOS clipboard.
     
@@ -257,7 +391,7 @@ async def upload_image(payload: ImagePayload):
     - filename: Optional filename
     - token: Security token
     """
-    validate_token(payload.token)
+    validate_token(payload.token, request)
     logger.info(f"Image upload: {payload.filename}")
     
     # Ensure upload directory exists
@@ -344,7 +478,8 @@ class MultiImagesPayload(BaseModel):
 
 
 @app.post("/upload_images")
-async def upload_images(payload: MultiImagesPayload):
+@limiter.limit("15/minute")
+async def upload_images(request: Request, payload: MultiImagesPayload):
     """
     Receive multiple Base64-encoded images from iOS clipboard.
     
@@ -355,7 +490,7 @@ async def upload_images(payload: MultiImagesPayload):
     - 1 image: Save + copy to clipboard (same as /upload_image)
     - Multiple images: Save all, NO clipboard, notification with count
     """
-    validate_token(payload.token)
+    validate_token(payload.token, request)
     
     if not payload.images:
         raise HTTPException(status_code=400, detail="No images provided")
@@ -427,7 +562,8 @@ async def upload_images(payload: MultiImagesPayload):
 
 
 @app.post("/clipboard")
-async def receive_clipboard(payload: ClipboardPayload):
+@limiter.limit("30/minute")
+async def receive_clipboard(request: Request, payload: ClipboardPayload):
     """
     Receive clipboard content from iOS.
     
@@ -435,10 +571,26 @@ async def receive_clipboard(payload: ClipboardPayload):
     - content: The actual content
     - token: Security token for validation
     """
-    validate_token(payload.token)
+    # Security checks
+    check_ip_whitelist(request)
+    validate_token(payload.token, request)
+    
+    # Track this request
+    track_request(request, "/clipboard")
+    
     logger.info(f"Clipboard: {payload.type} ({len(payload.content)} chars)")
     
     content = payload.content.strip()
+    
+    # Save to clipboard history
+    history = load_history()
+    history.append({
+        "timestamp": datetime.now().isoformat(),
+        "type": payload.type,
+        "preview": content[:100] + "..." if len(content) > 100 else content,
+        "content": content,  # Full content for Copy button in History tab
+    })
+    save_history(history)
     
     # Handle URLs - copy to clipboard AND open in browser
     if payload.type == "url" or is_url(content):
@@ -459,7 +611,9 @@ async def receive_clipboard(payload: ClipboardPayload):
 
 
 @app.post("/upload")
+@limiter.limit("15/minute")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     token: str = Form(None),
 ):
@@ -471,7 +625,7 @@ async def upload_file(
     """
     # Token can come from form or be None (we'll still validate)
     if token:
-        validate_token(token)
+        validate_token(token, request)
     else:
         # Try to get token from query param as fallback
         raise HTTPException(status_code=403, detail="Token required")
@@ -516,6 +670,28 @@ async def upload_file(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
+
+
+@app.get("/history")
+@limiter.limit("10/minute")
+async def get_history(request: Request, token: str, limit: int = 20):
+    """
+    Get clipboard history.
+    
+    Query params:
+    - token: Security token
+    - limit: Number of items to return (default 20, max 50)
+    """
+    validate_token(token, request)
+    
+    history = load_history()
+    # Return most recent first, limited to requested count
+    limit = min(limit, 50)
+    return {
+        "status": "success",
+        "count": len(history),
+        "items": history[-limit:][::-1],  # Reverse for most recent first
+    }
 
 
 if __name__ == "__main__":

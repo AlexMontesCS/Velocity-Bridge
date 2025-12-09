@@ -3,3 +3,4 @@ packaging
 pillow
 qrcode
 pystray
+watchdog

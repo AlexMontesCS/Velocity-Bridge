@@ -28,7 +28,10 @@ Thumbs.db
 *.local
 
 # Test files
+tests/
 test_*.py
+pytest.ini
+.pytest_cache/
 
 # Keep assets
 !assets/
