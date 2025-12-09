@@ -55,6 +55,23 @@ Download from [GitHub Releases](https://github.com/Trex099/Velocity-Bridge/relea
 
 </details>
 
+**Headless Server** — runs in background, no GUI:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
+```
+For servers or systems without a desktop. Runs as a systemd user service.
+
+<details>
+<summary>Headless service commands</summary>
+
+```bash
+systemctl --user status velocity   # check status
+systemctl --user restart velocity  # restart
+journalctl --user -u velocity -f   # view logs
+```
+
+</details>
+
 ## iOS Setup
 
 Scan these QR codes to add the shortcuts:
