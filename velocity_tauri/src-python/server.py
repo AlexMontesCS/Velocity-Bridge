@@ -434,40 +434,67 @@ async def upload_image(request: Request, payload: ImagePayload):
     
     # Save the file
     target_path.write_bytes(image_data)
+
+    # Convert HEIC to PNG if needed (for saved file)
+    try:
+        is_heic = image_data[:12].find(b'ftyp') != -1
+        if is_heic:
+            logger.info("Converting HEIC upload to PNG...")
+            png_path = str(target_path.with_suffix('.png'))
+            # Use temp file for conversion source to avoid overwriting issues
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.tmp') as tmp:
+                tmp.write(image_data)
+                tmp_path = tmp.name
+            
+            # Convert: heif-convert OR convert (ImageMagick)
+            # We overwrite the target_path with the new PNG
+            process = subprocess.run(
+                f'(heif-convert "{tmp_path}" "{png_path}" 2>/dev/null || convert "{tmp_path}" "{png_path}" 2>/dev/null)',
+                shell=True,
+                check=False
+            )
+            
+            # Cleanup temp
+            Path(tmp_path).unlink(missing_ok=True)
+            
+            if process.returncode == 0 and Path(png_path).exists():
+                # If target was "image.png" but content was HEIC, we just overwrote it with real PNG.
+                # If target was "image.heic", we now have "image.png".
+                # Update target_path to point to the PNG
+                if str(target_path) != png_path:
+                    target_path.unlink(missing_ok=True)
+                    target_path = Path(png_path)
+                logger.info(f"Conversion successful: {target_path}")
+            else:
+                logger.warning("HEIC conversion failed, keeping original file")
+
+    except Exception as e:
+        logger.error(f"Error converting HEIC: {e}")
+
     
     # Copy image to clipboard using wl-copy (Wayland)
     # Detect format and convert HEIC to PNG for clipboard compatibility
     try:
-        # Detect image format by magic bytes
-        is_heic = image_data[:12].find(b'ftyp') != -1  # HEIC has 'ftyp' near start
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.tmp') as tmp:
-            tmp.write(image_data)
+        # Re-read data in case it was converted
+        if target_path.exists():
+             final_image_data = target_path.read_bytes()
+        else:
+             final_image_data = image_data
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+            tmp.write(final_image_data)
             tmp_path = tmp.name
         
-        if is_heic:
-            # Convert HEIC to PNG using ImageMagick or heif-convert
-            png_path = tmp_path + ".png"
-            # Try heif-convert first, fall back to ImageMagick
-            subprocess.Popen(
-                f'(heif-convert "{tmp_path}" "{png_path}" 2>/dev/null || convert "{tmp_path}" "{png_path}" 2>/dev/null) && '
-                f'cat "{png_path}" | wl-copy --type image/png; rm -f "{tmp_path}" "{png_path}"',
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            print(f"Image clipboard started ({len(image_data)} bytes, HEIC→PNG)")
-        else:
-            # Already PNG/JPEG, copy directly
-            subprocess.Popen(
-                f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            print(f"Image clipboard started ({len(image_data)} bytes)")
+        # Copy to clipboard
+        subprocess.Popen(
+            f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        print(f"Image clipboard started ({len(final_image_data)} bytes)")
+
     except Exception as e:
         print(f"Failed to copy image to clipboard: {e}")
     
