@@ -1,0 +1,21 @@
+[Unit]
+Description=Velocity Bridge - iOS to Fedora Continuity Daemon
+After=network.target
+
+[Service]
+Type=simple
+# Set your security token here
+Environment="SECURITY_TOKEN=YOUR_SECURE_TOKEN_HERE"
+# Inherit display environment for clipboard access
+Environment="XDG_RUNTIME_DIR=/run/user/%U"
+Environment="WAYLAND_DISPLAY=wayland-0"
+Environment="DISPLAY=:0"
+# Path to the velocity directory
+WorkingDirectory=%h/velocity
+# Run the server
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
