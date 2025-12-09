@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/instal
 **Fedora**:
 ```bash
 sudo dnf copr enable trex099/velocity-bridge
-sudo dnf install velocity-bridge
+sudo dnf install velocity-bridge libappindicator-gtk3
 ```
 
 **Arch**:
