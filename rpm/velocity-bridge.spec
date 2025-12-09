@@ -1,53 +1,45 @@
 Name:           velocity-bridge
-Version:        1.0.8
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
 License:        MIT
 URL:            https://github.com/Trex099/Velocity-Bridge
-Source0:        %{name}-%{version}.tar.gz
+Source0:        https://github.com/Trex099/Velocity-Bridge/releases/download/v%{version}/velocity-bridge-linux-x86_64
+Source1:        https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/velocity-icon-final.png
 
-BuildArch:      noarch
-Requires:       python3
-Requires:       python3-pip
-Requires:       python3-tkinter
-Requires:       libappindicator-gtk3
+BuildArch:      x86_64
+Requires:       webkit2gtk4.1
+Requires:       gtk3
 Requires:       wl-clipboard
-Requires:       xsel
-Requires:       libnotify
-Requires:       avahi
-Requires:       avahi-tools
 
 %description
 Velocity Bridge syncs your iPhone clipboard to your Linux desktop.
 Copy on iPhone, paste on Linux. Works over your local network with no cloud.
 
+Features:
+- System tray support
+- Clipboard history with search
+- Automatic update notifications
+- Start at login option
+
 %prep
-%autosetup
+# Nothing to prep - downloading pre-built binary
 
 %build
-# Nothing to build for Python app
+# Nothing to build - using pre-built binary
 
 %install
 # Create directories
-mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
-mkdir -p %{buildroot}%{_prefix}/lib/systemd/user
 
-# Copy application files
-cp main.py %{buildroot}%{_datadir}/%{name}/
-cp requirements.txt %{buildroot}%{_datadir}/%{name}/
-cp -r gui/* %{buildroot}%{_datadir}/%{name}/
+# Install binary
+install -Dm755 %{SOURCE0} %{buildroot}%{_bindir}/velocity-bridge
 
-# Create launcher script
-cat > %{buildroot}%{_bindir}/velocity-bridge << 'EOF'
-#!/bin/bash
-cd /usr/share/velocity-bridge
-python3 app.py "$@"
-EOF
-chmod +x %{buildroot}%{_bindir}/velocity-bridge
+# Install icon
+install -Dm644 %{SOURCE1} %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
 
 # Desktop file
 cat > %{buildroot}%{_datadir}/applications/velocity-bridge.desktop << 'EOF'
@@ -61,59 +53,29 @@ Categories=Utility;Network;
 Terminal=false
 EOF
 
-# Icon
-cp gui/velocity-icon-final.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
-
-# Systemd user service
-cat > %{buildroot}%{_prefix}/lib/systemd/user/velocity.service << 'EOF'
-[Unit]
-Description=Velocity Bridge - iOS to Linux Clipboard Sync
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/usr/share/velocity-bridge
-ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8080
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-EOF
-
 %post
-# Install Python dependencies to system site-packages (accessible to all users)
-# Use --break-system-packages for PEP 668 compliance on modern Fedora
-SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])")
-pip3 install --break-system-packages --target="$SITE_PACKAGES" \
-  fastapi uvicorn python-multipart pillow qrcode pystray customtkinter 2>/dev/null || \
-pip3 install --break-system-packages \
-  fastapi uvicorn python-multipart pillow qrcode pystray customtkinter 2>/dev/null || true
-# Update icon cache
 touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
 echo ""
 echo "Velocity Bridge installed!"
 echo "Run 'velocity-bridge' or find it in your applications menu."
-echo ""
-echo "For headless mode: systemctl --user enable --now velocity"
 
 %postun
 touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
 
 %files
-%license LICENSE
-%doc README.md SHORTCUT_SETUP.md
 %{_bindir}/velocity-bridge
-%{_datadir}/%{name}/
 %{_datadir}/applications/velocity-bridge.desktop
 %{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
-%{_prefix}/lib/systemd/user/velocity.service
 
 %changelog
+* Tue Dec 10 2024 Trex099 <trex099@github.com> - 2.0.0-1
+- Complete rewrite using Tauri + React
+- System tray support
+- Clipboard history with search
+- Automatic update notifications
+- Start at login option
+
 * Sun Dec 08 2024 Velocity Bridge Team <trex099@github.com> - 1.0.0-1
 - Initial RPM release
-- GUI with system tray support
-- Systemd user service for headless mode
-- mDNS support
