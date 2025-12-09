@@ -2,6 +2,8 @@
   "name": "velocity-bridge",
   "private": true,
   "version": "2.0.1",
+  "description": "Copy on iPhone. Paste on Linux.",
+  "license": "GPL-3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

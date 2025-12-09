@@ -56,6 +56,9 @@
             pkgs.pkg-config
             pkgs.appimage-run
           ] ++ packages;
+          homepage = "https://github.com/Trex099/Velocity-Bridge";
+          license = pkgs.lib.licenses.gpl3;
+          platforms = pkgs.lib.platforms.linux;
 
           shellHook = ''
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath libraries}:$LD_LIBRARY_PATH
