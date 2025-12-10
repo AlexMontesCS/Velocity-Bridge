@@ -1,6 +1,6 @@
 Name:           velocity-bridge
 Version: 2.0.5
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
 License:        GPL-3.0
