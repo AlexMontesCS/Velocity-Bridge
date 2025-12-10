@@ -348,6 +348,26 @@ async def root():
     return {"status": "ok", "service": "Velocity Bridge"}
 
 
+@app.post("/shutdown")
+async def shutdown(request: Request, token: str):
+    """Gracefully shutdown the server."""
+    validate_token(token, request)
+    logger.info("Shutdown requested via API")
+    
+    # Schedule suicide in 1 second to allow response to return
+    import threading
+    import time
+    import signal
+    
+    def kill_self():
+        time.sleep(1)
+        os.kill(os.getpid(), signal.SIGTERM)
+        
+    threading.Thread(target=kill_self).start()
+    return {"status": "shutting_down"}
+
+
+
 @app.get("/stats")
 async def get_stats():
     """

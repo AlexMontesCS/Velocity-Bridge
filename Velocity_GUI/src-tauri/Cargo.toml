@@ -1,6 +1,6 @@
 [package]
 name = "velocity_tauri"
-version = "2.0.1"
+version = "2.0.2"
 description = "Velocity Bridge"
 authors = ["arsh"]
 license = "GPL-3.0"

@@ -66,8 +66,19 @@ function App() {
   // Stop sidecar function
   const stopServer = async () => {
     console.log("Stopping server...");
+
+    // 1. Try graceful shutdown via API
+    if (serverStatus?.token) {
+      try {
+        await fetch(`http://localhost:8080/shutdown?token=${serverStatus.token}`, { method: "POST" });
+        console.log("Sent shutdown signal to backend");
+      } catch (e) {
+        console.log("Backend already unreachable");
+      }
+    }
+
     try {
-      // Kill by process ref first
+      // 2. Kill by process ref first
       if (childRef.current) {
         try {
           await childRef.current.kill();
@@ -77,24 +88,18 @@ function App() {
         childRef.current = null;
       }
 
-      // Also kill any server process using pkill with multiple patterns
+      // 3. Also kill any server process using pkill with multiple patterns
       try {
         // Kill debug server (target/debug/server)
         const killDebug = Command.create("pkill", ["-9", "-f", "target/debug/server"]);
         await killDebug.execute();
-        console.log("Killed debug server");
-      } catch (e) {
-        console.log("No debug server to kill");
-      }
+      } catch (e) { /* ignore */ }
 
       try {
         // Kill release server (server-x86_64)
         const killRelease = Command.create("pkill", ["-9", "-f", "server-x86_64"]);
         await killRelease.execute();
-        console.log("Killed release server");
-      } catch (e) {
-        console.log("No release server to kill");
-      }
+      } catch (e) { /* ignore */ }
 
       setServerEnabled(false);
       setConnectionStatus("Server stopped");
