@@ -50,7 +50,7 @@ function App() {
     try {
       console.log("Attempting to spawn sidecar...");
       setConnectionStatus("Starting server...");
-      
+
       // Kill any zombie server from previous/broken versions (upgrade safety)
       try {
         const killZombie = Command.create("fuser", ["-k", "8080/tcp"]);
@@ -110,6 +110,10 @@ function App() {
         // Kill release server (server-x86_64)
         const killRelease = Command.create("pkill", ["-9", "-f", "server-x86_64"]);
         await killRelease.execute();
+
+        // Kill any process on port 8080 (most robust way)
+        const killPort = Command.create("fuser", ["-k", "8080/tcp"]);
+        await killPort.execute();
       } catch (e) { /* ignore */ }
 
       setServerEnabled(false);

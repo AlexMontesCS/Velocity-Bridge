@@ -45,6 +45,10 @@ pub fn run() {
                             }
                         }
                         "quit" => {
+                            // Force kill server backend before exiting
+                            // We use std::process::Command to ensure it runs synchronously
+                            let _ = std::process::Command::new("pkill").args(["-f", "server-x86_64"]).status();
+                            let _ = std::process::Command::new("fuser").args(["-k", "8080/tcp"]).status();
                             app.exit(0);
                         }
                         _ => {}
