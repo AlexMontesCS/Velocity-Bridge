@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build:sidecar": "bash ./build_sidecar.sh",
+    "build": "npm run build:sidecar && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

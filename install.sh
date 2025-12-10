@@ -38,8 +38,8 @@ mkdir -p "$BIN_DIR" "$ICON_DIR" "$APP_DIR"
 # Release URLs
 VERSION="2.0.5"
 BASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v$VERSION"
-RPM_URL="$BASE_URL/Velocity-Bridge-${VERSION}-1.x86_64.rpm"
-DEB_URL="$BASE_URL/Velocity-Bridge_${VERSION}_amd64.deb"
+RPM_URL="$BASE_URL/Velocity-Bridge-${VERSION}-2.x86_64.rpm"
+DEB_URL="$BASE_URL/Velocity-Bridge_${VERSION}-2_amd64.deb"
 APPIMAGE_URL="$BASE_URL/Velocity-Bridge_${VERSION}_amd64.AppImage"
 
 echo -e "${YELLOW}Detecting package manager...${NC}"
