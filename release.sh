@@ -45,7 +45,7 @@ echo "=================================================="
 echo "📝 Updating version numbers in files..."
 
 # Python Backend Version
-sed -i "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" Velocity_GUI/src-python/version.py
+sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" Velocity_GUI/src-python/version.py
 
 # Package.json
 sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" Velocity_GUI/package.json
