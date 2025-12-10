@@ -16,7 +16,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║           🚀 Velocity Bridge v2.0.1 Installer             ║"
+echo "║           🚀 Velocity Bridge v2.0.2 Installer             ║"
 echo "║      iOS → Linux Clipboard & Image Sync                   ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
