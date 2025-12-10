@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Settings,
   LayoutDashboard,
@@ -41,6 +42,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [updateInfo, setUpdateInfo] = useState<{ available: boolean; latestVersion: string; currentVersion: string } | null>(null);
   const [autostart, setAutostart] = useState(false);
+  const [installType, setInstallType] = useState<string | null>(null);
 
   // Store child process reference
   const childRef = useRef<{ pid: number; kill: () => Promise<void> } | null>(null);
@@ -139,6 +141,14 @@ function App() {
   // Spawn Sidecar on Mount and cleanup on close
   useEffect(() => {
     startServer();
+
+    // Detect installation type
+    invoke<string>("get_install_type")
+      .then(type => {
+        console.log("Install type detected:", type);
+        setInstallType(type);
+      })
+      .catch(err => console.error("Failed to detect install type:", err));
 
     // Listen for window close to cleanup server
     const setupCloseHandler = async () => {
@@ -394,16 +404,16 @@ X-GNOME-Autostart-enabled=true`;
               🎉 <strong>Update available!</strong> Version {updateInfo.latestVersion} is now available (you have {updateInfo.currentVersion})
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {serverStatus?.install_method === "native" ? (
+              {installType === "native" ? (
                 <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '4px' }}>
-                  Update via Package Manager (yay/dnf)
+                  Use system package manager to update (dnf/apt)
                 </span>
               ) : (
                 <button
                   onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
                   style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                 >
-                  Download & Install
+                  {installType === "appimage" ? "Download New AppImage" : "Download Update"}
                 </button>
               )}
               <button
@@ -671,16 +681,16 @@ X-GNOME-Autostart-enabled=true`;
                   </div>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
 
-                    {serverStatus?.install_method === "native" && updateInfo?.available ? (
+                    {updateInfo?.available && installType === "native" ? (
                       <div style={{ color: '#007AFF', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>ℹ️ Use <code>yay -Syu</code> or <code>dnf upgrade</code> to update</span>
+                        <span>ℹ️ Use <code>yay -Syu</code> or <code>sudo dnf update</code> to update</span>
                       </div>
                     ) : (
                       <button
-                        onClick={checkForUpdates}
+                        onClick={updateInfo?.available ? () => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest") : checkForUpdates}
                         style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer', fontSize: '14px' }}
                       >
-                        Check for Updates
+                        {updateInfo?.available ? (installType === "appimage" ? "Download AppImage" : "Download Release") : "Check for Updates"}
                       </button>
                     )}
 

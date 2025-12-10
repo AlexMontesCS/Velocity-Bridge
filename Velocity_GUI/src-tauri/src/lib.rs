@@ -10,6 +10,22 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[tauri::command]
+fn get_install_type() -> String {
+    if std::env::var("APPIMAGE").is_ok() {
+        return "appimage".to_string();
+    }
+    
+    if let Ok(exe_path) = std::env::current_exe() {
+        let path_str = exe_path.to_string_lossy();
+        if path_str.starts_with("/usr/") {
+            return "native".to_string();
+        }
+    }
+    
+    "manual".to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Fix for "Failed to create GBM buffer" on Linux (WebKitGTK)
@@ -18,7 +34,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, get_install_type])
         .setup(|app| {
             // Start the Python sidecar
             use tauri_plugin_shell::ShellExt;

@@ -56,3 +56,4 @@ NEXT_RELEASE_CONTEXT.md
 squashfs-root/
 debug_pkg/
 release_artifacts/
+release.sh

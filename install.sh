@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Velocity Bridge v2.0.1 - One-Click Installer
+# Velocity Bridge v2.0.4 - One-Click Installer
 # Author: Trex099
 # Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
 #
@@ -16,7 +16,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║           🚀 Velocity Bridge v2.0.3 Installer             ║"
+echo "║           🚀 Velocity Bridge v2.0.4 Installer             ║"
 echo "║      iOS → Linux Clipboard & Image Sync                   ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
@@ -36,7 +36,7 @@ APP_DIR="$HOME/.local/share/applications"
 mkdir -p "$BIN_DIR" "$ICON_DIR" "$APP_DIR"
 
 # Release URLs
-VERSION="v2.0.3"
+VERSION="2.0.4"
 BASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/$VERSION"
 RPM_URL="$BASE_URL/Velocity-Bridge-2.0.3-1.x86_64.rpm"
 DEB_URL="$BASE_URL/Velocity-Bridge_2.0.3_amd64.deb"
