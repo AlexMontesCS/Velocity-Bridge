@@ -41,6 +41,9 @@ BASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v$VERSION
 RPM_URL="$BASE_URL/Velocity-Bridge-${VERSION}-1.x86_64.rpm"
 DEB_URL="$BASE_URL/Velocity-Bridge_${VERSION}_amd64.deb"
 APPIMAGE_URL="$BASE_URL/Velocity-Bridge_${VERSION}_amd64.AppImage"
+echo -e "${YELLOW}Cleaning up old processes...${NC}"
+pkill -f velocity-bridge || true
+pkill -f server-x86_64 || true
 
 echo -e "${YELLOW}Detecting package manager...${NC}"
 
