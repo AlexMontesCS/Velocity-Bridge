@@ -1,6 +1,6 @@
 # Velocity Bridge
 
-[![Version](https://img.shields.io/badge/version-2.0.1-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.0.4-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 
@@ -59,10 +59,7 @@ Grab from [releases](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 
 ### Headless (no GUI)
 
-For servers or if you just don't want a window:
-```bash
-curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
-```
+For servers or if you just don't want a window, see the `systemd/` folder for the headless Python server (`main.py`) and a sample systemd service file.
 
 Runs as a systemd user service. Check on it with:
 ```bash
