@@ -35,20 +35,58 @@ APP_DIR="$HOME/.local/share/applications"
 
 mkdir -p "$BIN_DIR" "$ICON_DIR" "$APP_DIR"
 
-# Download URL (update this when you create the release)
-RELEASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v2.0.1"
+# Release URLs
+VERSION="v2.0.1"
+BASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/$VERSION"
+RPM_URL="$BASE_URL/Velocity-Bridge-2.0.1-1.x86_64.rpm"
+DEB_URL="$BASE_URL/Velocity-Bridge_2.0.1_amd64.deb"
+APPIMAGE_URL="$BASE_URL/Velocity-Bridge_2.0.1_amd64.AppImage"
+
+echo -e "${YELLOW}Detecting package manager...${NC}"
+
+# 1. Fedora / RHEL (dnf)
+if command -v dnf &> /dev/null; then
+    echo -e "${BLUE}Fedora detected. Installing RPM...${NC}"
+    if sudo dnf install -y "$RPM_URL"; then
+        echo -e "${GREEN}✅ Installed successfully via dnf!${NC}"
+        
+        # Enable firewall port if firewalld is running
+        if systemctl is-active --quiet firewalld; then
+            echo -e "${YELLOW}Opening port 8080...${NC}"
+            sudo firewall-cmd --add-port=8080/tcp --permanent >/dev/null
+            sudo firewall-cmd --reload >/dev/null
+        fi
+        exit 0
+    else
+        echo -e "${RED}RPM installation failed. Trying AppImage fallback...${NC}"
+    fi
+
+# 2. Debian / Ubuntu (apt)
+elif command -v apt &> /dev/null; then
+    echo -e "${BLUE}Debian/Ubuntu detected. Installing DEB...${NC}"
+    TEMP_DEB="/tmp/velocity-bridge.deb"
+    curl -fsSL "$DEB_URL" -o "$TEMP_DEB"
+    if sudo apt install -y "$TEMP_DEB"; then
+        rm "$TEMP_DEB"
+        echo -e "${GREEN}✅ Installed successfully via apt!${NC}"
+        exit 0
+    else
+        echo -e "${RED}DEB installation failed. Trying AppImage fallback...${NC}"
+    fi
+fi
+
+# 3. Fallback to AppImage (Arch, NixOS, etc.)
+echo -e "${YELLOW}Usage AppImage fallback...${NC}"
+
 BINARY_NAME="velocity-bridge"
-
-echo -e "${YELLOW}Downloading Velocity Bridge...${NC}"
-
-# Download the binary (AppImage is more reliable as it bundles dependencies)
-curl -fsSL "$RELEASE_URL/Velocity-Bridge_2.0.1_amd64.AppImage" -o "$BIN_DIR/$BINARY_NAME"
+# Download the binary
+curl -fsSL "$APPIMAGE_URL" -o "$BIN_DIR/$BINARY_NAME" || { echo -e "${RED}Failed to download AppImage.${NC}"; exit 1; }
 chmod +x "$BIN_DIR/$BINARY_NAME"
 
 # Download icon
 curl -fsSL "https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/gui/velocity-icon-final.png" -o "$ICON_DIR/velocity-bridge.png"
 
-echo -e "${GREEN}✅ Binary installed to $BIN_DIR/$BINARY_NAME${NC}"
+echo -e "${GREEN}✅ AppImage installed to $BIN_DIR/$BINARY_NAME${NC}"
 
 # Create desktop entry
 cat > "$APP_DIR/velocity-bridge.desktop" << EOF
@@ -69,21 +107,16 @@ fi
 
 # Add to PATH if not already there
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo -e "${YELLOW}Adding ~/.local/bin to PATH in your shell config...${NC}"
-    
-    # Detect shell and add to appropriate config
-    if [ -f "$HOME/.bashrc" ]; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-    fi
-    if [ -f "$HOME/.zshrc" ]; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
-    fi
+    # ... (Keep existing PATH logic)
+    if [ -f "$HOME/.bashrc" ]; then echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"; fi
+    if [ -f "$HOME/.zshrc" ]; then echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"; fi
 fi
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║         ✅ Velocity Bridge Installed Successfully!        ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+
 echo ""
 echo -e "Find ${BLUE}Velocity Bridge${NC} in your applications menu,"
 echo -e "or run: ${BLUE}velocity-bridge${NC}"
