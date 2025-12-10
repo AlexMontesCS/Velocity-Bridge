@@ -22,7 +22,7 @@ pub fn run() {
         .setup(|app| {
             // Start the Python sidecar
             use tauri_plugin_shell::ShellExt;
-            let sidecar_command = app.shell().sidecar("binaries/server").map_err(|e| e.to_string())?;
+            let sidecar_command = app.shell().sidecar("server").map_err(|e| e.to_string())?;
             let (mut _rx, _child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
 
             // Create tray menu
