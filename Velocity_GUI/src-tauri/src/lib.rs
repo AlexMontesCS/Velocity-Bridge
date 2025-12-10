@@ -4,11 +4,6 @@ use tauri::{
     Manager,
 };
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
 
 #[tauri::command]
 fn get_install_type() -> String {
@@ -34,13 +29,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet, get_install_type])
+        .invoke_handler(tauri::generate_handler![get_install_type])
         .setup(|app| {
-            // Start the Python sidecar
-            use tauri_plugin_shell::ShellExt;
-            let sidecar_command = app.shell().sidecar("server").map_err(|e| e.to_string())?;
-            let (mut _rx, _child) = sidecar_command.spawn().map_err(|e| e.to_string())?;
-
             // Create tray menu
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

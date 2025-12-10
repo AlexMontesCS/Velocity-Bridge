@@ -1,5 +1,5 @@
 {
-  description = "Velocity Bridge - Tauri v2 Development Environment";
+  description = "Velocity Bridge - iOS to Linux Clipboard Sync";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -15,39 +15,84 @@
           inherit system overlays;
         };
 
-        # Rust toolchain
+        # Rust toolchain for dev
         rust = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
         };
 
-        # System libraries required for Tauri v2
-        libraries = with pkgs; [
+        # Runtime dependencies
+        runtimeDeps = with pkgs; [
           webkitgtk_4_1
           gtk3
-          cairo
-          gdk-pixbuf
           glib
           dbus
           openssl_3
-          librsvg
           libsoup_3
+          wl-clipboard
+          xclip
+          libappindicator-gtk3
+          libnotify
         ];
-        
-        # Runtime dependencies for the app
-        packages = with pkgs; [
-          curl
-          wget
-          pkg-config
-          dbus
-          openssl_3
-          glib
-          gtk3
-          libsoup_3
-          webkitgtk_4_1
-          librsvg
-        ] ++ libraries;
+
+        # The actual package
+        velocity-bridge = pkgs.stdenv.mkDerivation rec {
+          pname = "velocity-bridge";
+          version = "2.0.5";
+
+          src = pkgs.fetchurl {
+            url = "https://github.com/Trex099/Velocity-Bridge/releases/download/v${version}/Velocity-Bridge_${version}_amd64.AppImage";
+            sha256 = "49c3c81b507da997a5243bba00768578cb1a2a1f0322111f127a9d19878394df";
+          };
+
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.appimage-run ];
+
+          dontUnpack = true;
+
+          installPhase = ''
+            mkdir -p $out/bin $out/share/applications $out/share/icons/hicolor/256x256/apps
+            
+            # Copy the AppImage
+            cp $src $out/bin/.velocity-bridge-wrapped
+            chmod +x $out/bin/.velocity-bridge-wrapped
+            
+            # Create wrapper with all dependencies
+            makeWrapper ${pkgs.appimage-run}/bin/appimage-run $out/bin/velocity-bridge \
+              --add-flags "$out/bin/.velocity-bridge-wrapped" \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeDeps}
+            
+            # Desktop entry
+            cat > $out/share/applications/velocity-bridge.desktop <<EOF
+            [Desktop Entry]
+            Name=Velocity Bridge
+            Comment=iOS to Linux Clipboard Sync
+            Exec=velocity-bridge
+            Icon=velocity-bridge
+            Type=Application
+            Categories=Utility;Network;
+            Terminal=false
+            EOF
+            
+            # Download icon
+            ${pkgs.curl}/bin/curl -fsSL "https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/assets/velocity-icon.png" \
+              -o $out/share/icons/hicolor/256x256/apps/velocity-bridge.png
+          '';
+
+          meta = with pkgs.lib; {
+            description = "iOS to Linux Clipboard Sync - Copy on iPhone, paste on Linux";
+            homepage = "https://github.com/Trex099/Velocity-Bridge";
+            license = licenses.gpl3;
+            platforms = [ "x86_64-linux" ];
+            maintainers = [];
+          };
+        };
 
       in {
+        # The main package
+        packages.default = velocity-bridge;
+        packages.velocity-bridge = velocity-bridge;
+
+        # Dev shell for building from source
         devShells.default = pkgs.mkShell {
           buildInputs = [
             rust
@@ -55,13 +100,17 @@
             pkgs.yarn
             pkgs.pkg-config
             pkgs.appimage-run
-          ] ++ packages;
-          homepage = "https://github.com/Trex099/Velocity-Bridge";
-          license = pkgs.lib.licenses.gpl3;
-          platforms = pkgs.lib.platforms.linux;
+            pkgs.python312
+          ] ++ runtimeDeps ++ (with pkgs; [
+            cairo
+            gdk-pixbuf
+            librsvg
+            curl
+            wget
+          ]);
 
           shellHook = ''
-            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath libraries}:$LD_LIBRARY_PATH
+            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath runtimeDeps}:$LD_LIBRARY_PATH
             export XDG_DATA_DIRS=${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS
             
             echo "🚀 Velocity Bridge Dev Shell"

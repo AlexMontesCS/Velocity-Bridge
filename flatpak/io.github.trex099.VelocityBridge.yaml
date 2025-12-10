@@ -5,61 +5,69 @@ sdk: org.freedesktop.Sdk
 command: velocity-bridge
 
 finish-args:
-  # Network access for server
+  # Network access for clipboard sync server
   - --share=network
-  # Wayland clipboard
+  # Wayland clipboard access
   - --socket=wayland
-  # X11 fallback
+  # X11 fallback and clipboard
   - --socket=x11
   - --share=ipc
   # Desktop notifications
   - --talk-name=org.freedesktop.Notifications
-  # System tray
+  # System tray (AppIndicator/StatusNotifier)
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Sound
+  - --talk-name=org.freedesktop.portal.Notification
+  # Sound for notifications
   - --socket=pulseaudio
-  # Access Downloads folder for file uploads
+  # Access Downloads folder for image uploads
   - --filesystem=xdg-download
-  # Config directory
+  # Config and data directories
   - --filesystem=~/.config/velocity-bridge:create
   - --filesystem=~/.local/share/velocity-bridge:create
+  # GPU acceleration for WebKitGTK
+  - --device=dri
 
 modules:
-  # Python dependencies from pip
-  - name: python-deps
-    buildsystem: simple
-    build-commands:
-      - pip3 install --no-build-isolation --prefix=/app fastapi uvicorn python-multipart pillow qrcode pystray customtkinter
-    sources: []
-
-  # Main application
+  # Main Tauri application (from AppImage)
   - name: velocity-bridge
     buildsystem: simple
     build-commands:
-      # Create directories
-      - install -d /app/share/velocity-bridge
-      - install -d /app/bin
+      # Extract AppImage
+      - chmod +x Velocity-Bridge_2.0.4_amd64.AppImage
+      - ./Velocity-Bridge_2.0.4_amd64.AppImage --appimage-extract
       
-      # Copy application files
-      - cp main.py /app/share/velocity-bridge/
-      - cp requirements.txt /app/share/velocity-bridge/
-      - cp -r gui/* /app/share/velocity-bridge/
+      # Install binary
+      - install -Dm755 squashfs-root/usr/bin/velocity-bridge /app/bin/velocity-bridge
       
-      # Create launcher
-      - |
-        cat > /app/bin/velocity-bridge << 'EOF'
-        #!/bin/bash
-        cd /app/share/velocity-bridge
-        exec python3 app.py "$@"
-        EOF
-      - chmod +x /app/bin/velocity-bridge
+      # Install libraries (Tauri bundles its own WebKit)
+      - cp -r squashfs-root/usr/lib/* /app/lib/ || true
       
-      # Install desktop file and icon
-      - install -Dm644 flatpak/io.github.trex099.VelocityBridge.desktop /app/share/applications/io.github.trex099.VelocityBridge.desktop
-      - install -Dm644 gui/velocity-icon-final.png /app/share/icons/hicolor/256x256/apps/io.github.trex099.VelocityBridge.png
-      - install -Dm644 flatpak/io.github.trex099.VelocityBridge.metainfo.xml /app/share/metainfo/io.github.trex099.VelocityBridge.metainfo.xml
+      # Install desktop file
+      - install -Dm644 io.github.trex099.VelocityBridge.desktop /app/share/applications/io.github.trex099.VelocityBridge.desktop
+      
+      # Install icon
+      - install -Dm644 velocity-icon.png /app/share/icons/hicolor/256x256/apps/io.github.trex099.VelocityBridge.png
+      
+      # Install metainfo
+      - install -Dm644 io.github.trex099.VelocityBridge.metainfo.xml /app/share/metainfo/io.github.trex099.VelocityBridge.metainfo.xml
     
     sources:
-      - type: git
-        url: https://github.com/Trex099/Velocity-Bridge.git
-        tag: v1.0.2
+      # AppImage from GitHub Release
+      - type: file
+        url: https://github.com/Trex099/Velocity-Bridge/releases/download/v2.0.4/Velocity-Bridge_2.0.4_amd64.AppImage
+        sha256: e68bb1f946c51829b2fbb87e26536d6011d03ae81afb9751971ca7062c1aa87c
+        dest-filename: Velocity-Bridge_2.0.4_amd64.AppImage
+      
+      # Desktop file
+      - type: file
+        path: io.github.trex099.VelocityBridge.desktop
+      
+      # Icon
+      - type: file
+        url: https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/assets/velocity-icon.png
+        sha256: 2d8d8b52919fb5970a1a208d363c5d83310ec521a7adad897984a4741f70e37c
+        dest-filename: velocity-icon.png
+      
+      # Metainfo
+      - type: file
+        path: io.github.trex099.VelocityBridge.metainfo.xml

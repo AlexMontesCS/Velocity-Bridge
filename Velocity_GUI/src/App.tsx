@@ -13,6 +13,10 @@ import { QRCodeSVG } from "qrcode.react";
 import velocityLogo from "./assets/logo.png";
 import "./App.css";
 
+// iOS Shortcut URLs - update here if shortcuts are recreated
+const SHORTCUT_TEXT_URL = "https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152";
+const SHORTCUT_IMAGE_URL = "https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865";
+
 interface HistoryItem {
   timestamp: string;
   type: "text" | "url" | "image";
@@ -193,10 +197,12 @@ function App() {
       }
     };
 
-    const interval = setInterval(fetchData, 500); // Poll every 500ms for real-time feel
+    // Smart polling: faster when viewing history (1.5s), slower otherwise (3s)
+    const pollInterval = activeTab === "history" ? 1500 : 3000;
+    const interval = setInterval(fetchData, pollInterval);
     fetchData();
     return () => clearInterval(interval);
-  }, [serverEnabled]); // Re-run when serverEnabled changes
+  }, [serverEnabled, activeTab]); // Re-run when serverEnabled or tab changes
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -260,8 +266,11 @@ function App() {
   };
 
   const checkForUpdates = async () => {
-    // Current version comes from backend status or fallback to hardcoded if not connected
-    const currentVersion = serverStatus?.version || "2.0.0";
+    // Only check if we have the current version from backend
+    if (!serverStatus?.version) {
+      return;
+    }
+    const currentVersion = serverStatus.version;
 
     try {
       const response = await fetch("https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest");
@@ -335,6 +344,26 @@ X-GNOME-Autostart-enabled=true`;
   };
 
   const isConnected = connectionStatus === "Connected";
+
+  // Regenerate security token
+  const regenerateToken = async () => {
+    if (!serverStatus?.token) return;
+    if (!confirm("Regenerate token?\n\nYou will need to update your iOS shortcuts with the new token.")) return;
+    try {
+      const response = await fetch(`http://localhost:8080/regenerate_token?token=${serverStatus.token}`, { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Token regenerated:", data.token);
+        // The new token will be picked up on next status poll
+      } else {
+        console.error("Failed to regenerate token");
+        alert("Failed to regenerate token");
+      }
+    } catch (err) {
+      console.error("Error regenerating token:", err);
+      alert("Error regenerating token");
+    }
+  };
 
   return (
     <div className="app-container">
@@ -487,6 +516,13 @@ X-GNOME-Autostart-enabled=true`;
                   >
                     {showToken ? "Hide" : "Show"}
                   </button>
+                  <button
+                    className="field-btn"
+                    onClick={regenerateToken}
+                    title="Generate a new security token"
+                  >
+                    New
+                  </button>
                 </div>
               </div>
             </div>
@@ -586,7 +622,7 @@ X-GNOME-Autostart-enabled=true`;
                 <div style={{ background: '#f8f9fa', borderRadius: '16px', padding: '32px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '20px', color: '#333' }}>📋 Text Clipboard</h4>
                   <QRCodeSVG
-                    value="https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152"
+                    value={SHORTCUT_TEXT_URL}
                     size={140}
                     level="M"
                   />
@@ -595,7 +631,7 @@ X-GNOME-Autostart-enabled=true`;
                 <div style={{ background: '#f8f9fa', borderRadius: '16px', padding: '32px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '20px', color: '#333' }}>🖼️ Image Clipboard</h4>
                   <QRCodeSVG
-                    value="https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865"
+                    value={SHORTCUT_IMAGE_URL}
                     size={140}
                     level="M"
                   />
@@ -646,10 +682,6 @@ X-GNOME-Autostart-enabled=true`;
                     onChange={toggleAutostart}
                   />
                 </div>
-                <div className="setting-item">
-                  <label>Notifications</label>
-                  <input type="checkbox" defaultChecked />
-                </div>
               </div>
 
               <div className="settings-section">
@@ -664,6 +696,9 @@ X-GNOME-Autostart-enabled=true`;
                     />
                     <button onClick={() => setShowToken(!showToken)}>
                       {showToken ? "Hide" : "Show"}
+                    </button>
+                    <button onClick={regenerateToken}>
+                      Regenerate
                     </button>
                   </div>
                 </div>
@@ -715,7 +750,7 @@ X-GNOME-Autostart-enabled=true`;
                   <div className="qr-item">
                     <h4>📋 Text Clipboard</h4>
                     <QRCodeSVG
-                      value="https://www.icloud.com/shortcuts/ad3d2f4b41cc4f99bfcfd75554a94152"
+                      value={SHORTCUT_TEXT_URL}
                       size={120}
                       level="M"
                     />
@@ -724,7 +759,7 @@ X-GNOME-Autostart-enabled=true`;
                   <div className="qr-item">
                     <h4>🖼️ Image Clipboard</h4>
                     <QRCodeSVG
-                      value="https://www.icloud.com/shortcuts/c448bdec6706484ab3d6e7a99aae7865"
+                      value={SHORTCUT_IMAGE_URL}
                       size={120}
                       level="M"
                     />

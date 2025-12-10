@@ -5,7 +5,7 @@
   <summary>iOS to Linux Clipboard Sync</summary>
   
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>GPL-3.0-only</project_license>
   
   <developer id="io.github.trex099">
     <name>Trex099</name>
@@ -24,9 +24,12 @@
       <li>Text clipboard sync</li>
       <li>Image clipboard sync (HEIC to PNG conversion)</li>
       <li>URL auto-open in browser</li>
-      <li>Desktop notifications</li>
+      <li>Desktop notifications with sound</li>
       <li>System tray integration</li>
-      <li>QR codes for easy iOS setup</li>
+      <li>Clipboard history with search</li>
+      <li>QR codes for easy iOS Shortcuts setup</li>
+      <li>Start at login option</li>
+      <li>Automatic update notifications</li>
     </ul>
   </description>
   
@@ -45,15 +48,33 @@
   <content_rating type="oars-1.1" />
   
   <releases>
-    <release version="1.0.2" date="2024-12-08">
+    <release version="2.0.4" date="2024-12-10">
       <description>
-        <p>Initial Flathub release</p>
+        <p>Smart Update Release</p>
         <ul>
-          <li>Text and image clipboard sync</li>
-          <li>GUI with system tray</li>
-          <li>Token persistence</li>
-          <li>Live logs</li>
+          <li>Headless mode support (systemd service)</li>
+          <li>Smart update notifications based on install method</li>
+          <li>Security token auto-generation fix</li>
+          <li>Show/Hide toggle for token and IP</li>
         </ul>
+      </description>
+    </release>
+    <release version="2.0.0" date="2024-12-08">
+      <description>
+        <p>Complete Rewrite with Tauri</p>
+        <ul>
+          <li>New Tauri + React GUI (faster, native look)</li>
+          <li>System tray - close window, app keeps running</li>
+          <li>Clipboard history with search</li>
+          <li>Clear all history with one click</li>
+          <li>Start at login toggle</li>
+          <li>Automatic update checker</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.2" date="2024-12-07">
+      <description>
+        <p>Legacy Python/Tkinter version (deprecated)</p>
       </description>
     </release>
   </releases>
@@ -69,6 +90,8 @@
     <keyword>ios</keyword>
     <keyword>iphone</keyword>
     <keyword>paste</keyword>
+    <keyword>copy</keyword>
+    <keyword>tauri</keyword>
   </keywords>
   
   <requires>

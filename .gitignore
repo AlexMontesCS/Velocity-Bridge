@@ -44,16 +44,22 @@ dist/
 # AppImage build artifacts
 AppDir/
 appimagetool
+linuxdeploy
+linuxdeploy-plugin-appimage
 *.AppImage
 *.rpm
-release-v2.0.0/
-*.AppImage
-velocity_tauri/src-tauri/target/
-velocity_tauri/src-tauri/binaries/
-velocity_tauri/src-tauri/server-*
-NEXT_RELEASE_CONTEXT.md
-
+*.src.rpm
+release-v*/
 squashfs-root/
 debug_pkg/
 release_artifacts/
-release.sh
+
+# RPM build directories
+rpm/BUILD/
+rpm/RPMS/
+rpm/SOURCES/
+rpm/SRPMS/
+
+# Release artifacts
+release_v*/
+aur_update.sh

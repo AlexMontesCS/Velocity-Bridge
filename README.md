@@ -1,6 +1,6 @@
 # Velocity Bridge
 
-[![Version](https://img.shields.io/badge/version-2.0.4-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.0.5-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 
@@ -45,7 +45,17 @@ sudo dnf install velocity-bridge libappindicator-gtk3
 yay -S velocity-bridge
 ```
 
-**NixOS**: The flake currently builds the Python version. For v2.0.0, grab the AppImage from releases or use the curl installer above.
+**NixOS**:
+```bash
+# Run directly
+nix run github:Trex099/Velocity-Bridge
+
+# Or install to profile
+nix profile install github:Trex099/Velocity-Bridge
+
+# Or add to flake.nix
+# inputs.velocity-bridge.url = "github:Trex099/Velocity-Bridge";
+```
 
 <details>
 <summary>Direct downloads</summary>

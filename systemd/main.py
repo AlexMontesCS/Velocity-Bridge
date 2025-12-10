@@ -3,7 +3,7 @@ Velocity Bridge - LAN Continuity Daemon for iOS → Linux
 
 Author: trex099-Arshgour
 GitHub: https://github.com/Trex099/Velocity-Bridge
-License: MIT
+License: GPL-3.0
 """
 import base64
 import logging

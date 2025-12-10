@@ -93,8 +93,8 @@ def load_config() -> dict:
     try:
         if config_file.exists():
             config = json.loads(config_file.read_text())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not load config: {e}")
     
     # Generate token if it doesn't exist
     if not config.get("token") and not config.get("security_token"):
@@ -102,8 +102,8 @@ def load_config() -> dict:
         try:
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             config_file.write_text(json.dumps(config, indent=2))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not save config: {e}")
     
     return config
 
@@ -166,8 +166,8 @@ def load_history() -> list:
         if HISTORY_FILE.exists():
             import json
             return json.loads(HISTORY_FILE.read_text())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not load history: {e}")
     return []
 
 
@@ -366,6 +366,46 @@ async def shutdown(request: Request, token: str):
     threading.Thread(target=kill_self).start()
     return {"status": "shutting_down"}
 
+
+@app.post("/regenerate_token")
+async def regenerate_token(request: Request, token: str):
+    """
+    Regenerate the security token.
+    Requires current token for authentication.
+    Returns the new token.
+    """
+    global SECURITY_TOKEN
+    import json
+    import secrets
+    
+    validate_token(token, request)
+    logger.info("Token regeneration requested")
+    
+    # Generate new token
+    new_token = secrets.token_hex(12)
+    
+    # Update config file
+    config_file = CONFIG_DIR / "settings.json"
+    config = {}
+    try:
+        if config_file.exists():
+            config = json.loads(config_file.read_text())
+    except Exception as e:
+        logger.debug(f"Could not load config for token regeneration: {e}")
+    
+    config["token"] = new_token
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(json.dumps(config, indent=2))
+    except Exception as e:
+        logger.error(f"Failed to save new token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save new token")
+    
+    # Update global variable
+    SECURITY_TOKEN = new_token
+    
+    logger.info("Token regenerated successfully")
+    return {"status": "success", "token": new_token}
 
 
 @app.get("/stats")
@@ -642,7 +682,8 @@ def get_local_ip():
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Could not detect local IP: {e}")
         return "127.0.0.1"
 
 
