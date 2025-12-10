@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Settings,
   LayoutDashboard,
@@ -49,6 +50,16 @@ function App() {
     try {
       console.log("Attempting to spawn sidecar...");
       setConnectionStatus("Starting server...");
+      
+      // Kill any zombie server from previous/broken versions (upgrade safety)
+      try {
+        const killZombie = Command.create("fuser", ["-k", "8080/tcp"]);
+        await killZombie.execute();
+        console.log("Killed any zombie process on port 8080");
+      } catch (e) {
+        // No zombie or fuser not available - that's fine
+      }
+
       const command = Command.sidecar("server");
       const child = await command.spawn();
       childRef.current = child;
@@ -121,9 +132,19 @@ function App() {
     }
   };
 
-  // Spawn Sidecar on Mount
+  // Spawn Sidecar on Mount and cleanup on close
   useEffect(() => {
     startServer();
+
+    // Listen for window close to cleanup server
+    const setupCloseHandler = async () => {
+      const appWindow = getCurrentWindow();
+      await appWindow.onCloseRequested(async () => {
+        console.log("Window close requested, stopping server...");
+        await stopServer();
+      });
+    };
+    setupCloseHandler();
   }, []);
 
   // Poll History & Status
