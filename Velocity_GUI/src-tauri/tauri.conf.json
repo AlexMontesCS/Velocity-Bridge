@@ -32,7 +32,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "server"
+      "binaries/server"
     ]
   },
   "plugins": {
