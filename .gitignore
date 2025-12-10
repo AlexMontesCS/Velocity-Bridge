@@ -52,3 +52,7 @@ velocity_tauri/src-tauri/target/
 velocity_tauri/src-tauri/binaries/
 velocity_tauri/src-tauri/server-*
 NEXT_RELEASE_CONTEXT.md
+
+squashfs-root/
+debug_pkg/
+release_artifacts/

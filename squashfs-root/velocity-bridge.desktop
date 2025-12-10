@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=Velocity Bridge
-Comment=iOS to Linux Clipboard Sync
-Exec=velocity-bridge
-Icon=velocity-bridge
-Type=Application
-Categories=Utility;Network;
-Terminal=false
