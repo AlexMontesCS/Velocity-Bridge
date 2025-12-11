@@ -63,3 +63,8 @@ rpm/SRPMS/
 # Release artifacts
 release_v*/
 aur_update.sh
+
+# Master Context System (local only - never commit)
+project_state.md
+architecture.md
+.antigravityrules

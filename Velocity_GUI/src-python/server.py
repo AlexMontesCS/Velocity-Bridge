@@ -865,6 +865,24 @@ async def clear_history(request: Request, token: str):
     return {"status": "success", "message": "History cleared"}
 
 
+def check_port(port: int) -> bool:
+    """Check if port is already in use"""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    import sys
+    
+    PORT = 8080
+    
+    if check_port(PORT):
+        logger.warning(f"⚠️ Port {PORT} is already in use! Velocity Bridge might already be running (Headless or GUI mode).")
+        logger.warning("Attempting to start anyway (it will likely fail to bind)...")
+        
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=PORT)
+    except Exception as e:
+        logger.error(f"Failed to start server: {e}")
+        sys.exit(1)
