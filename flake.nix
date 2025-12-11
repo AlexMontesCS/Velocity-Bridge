@@ -37,11 +37,11 @@
         # The actual package
         velocity-bridge = pkgs.stdenv.mkDerivation rec {
           pname = "velocity-bridge";
-          version = "2.0.5";
+          version = "2.0.9";
 
           src = pkgs.fetchurl {
             url = "https://github.com/Trex099/Velocity-Bridge/releases/download/v${version}/Velocity-Bridge_${version}_amd64.AppImage";
-            sha256 = "49c3c81b507da997a5243bba00768578cb1a2a1f0322111f127a9d19878394df";
+            sha256 = "d270a74f7c5bf4098650e8e23ed9c458c397098c1929ba5990ca454ada8908ab";
           };
 
           nativeBuildInputs = [ pkgs.makeWrapper pkgs.appimage-run ];
