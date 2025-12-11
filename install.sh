@@ -36,7 +36,7 @@ APP_DIR="$HOME/.local/share/applications"
 mkdir -p "$BIN_DIR" "$ICON_DIR" "$APP_DIR"
 
 # Release URLs
-VERSION="2.0.7"
+VERSION="2.0.8"
 BASE_URL="https://github.com/Trex099/Velocity-Bridge/releases/download/v$VERSION"
 RPM_URL="$BASE_URL/Velocity-Bridge-${VERSION}-1.x86_64.rpm"
 DEB_URL="$BASE_URL/Velocity-Bridge_${VERSION}_amd64.deb"

@@ -46,6 +46,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [updateInfo, setUpdateInfo] = useState<{ available: boolean; latestVersion: string; currentVersion: string } | null>(null);
   const [autostart, setAutostart] = useState(false);
+  const [isTogglingAutostart, setIsTogglingAutostart] = useState(false);
   const [installType, setInstallType] = useState<string | null>(null);
 
   // Store child process reference
@@ -318,6 +319,10 @@ function App() {
 
   // Toggle autostart
   const toggleAutostart = async () => {
+    // Prevent rapid clicking race conditions
+    if (isTogglingAutostart) return;
+    setIsTogglingAutostart(true);
+
     const desktopEntry = `[Desktop Entry]
 Type=Application
 Name=Velocity Bridge
@@ -325,6 +330,9 @@ Exec=velocity-bridge
 Icon=velocity-bridge
 Hidden=false
 NoDisplay=false
+StartupWMClass=velocity-bridge
+Terminal=false
+Categories=Utility;Network;
 X-GNOME-Autostart-enabled=true`;
 
     try {
@@ -340,6 +348,8 @@ X-GNOME-Autostart-enabled=true`;
       }
     } catch (err) {
       console.error("Failed to toggle autostart:", err);
+    } finally {
+      setIsTogglingAutostart(false);
     }
   };
 
