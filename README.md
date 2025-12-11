@@ -143,24 +143,63 @@ On some distros you might need `libwebkit2gtk-4.1` installed.
 
 ## Uninstall
 
-**GUI (curl installer)**:
+### GUI (One-Click Installer)
+If you used the `curl | bash` command:
 ```bash
 rm ~/.local/bin/velocity-bridge
 rm ~/.local/share/applications/velocity-bridge.desktop
 rm ~/.local/share/icons/hicolor/256x256/apps/velocity-bridge.png
 ```
 
-**Headless service**:
+### Headless (Service)
+If you installed the headless background service:
 ```bash
 systemctl --user stop velocity
 systemctl --user disable velocity
 rm ~/.config/systemd/user/velocity.service
 rm -rf ~/velocity
+systemctl --user daemon-reload
 ```
 
-**Package managers**: Just uninstall with your package manager (`dnf remove`, `pacman -R`, etc).
+### Package Managers
+**Fedora / RHEL / CentOS**:
+```bash
+sudo dnf remove velocity-bridge
+# Disable Copr if you want:
+sudo dnf copr disable trex099/velocity-bridge
+```
 
-## Contributing
+**Arch Linux (AUR)**:
+```bash
+yay -R velocity-bridge
+# or
+paru -R velocity-bridge
+```
+
+**Ubuntu / Debian (.deb)**:
+```bash
+sudo apt remove velocity-bridge
+```
+
+**openSUSE (.rpm)**:
+```bash
+sudo zypper remove velocity-bridge
+```
+
+**NixOS**:
+```bash
+# If installed via profile:
+nix profile remove github:Trex099/Velocity-Bridge
+
+# If in configuration.nix:
+# Remove 'velocity-bridge' from environment.systemPackages and rebuild.
+```
+
+### AppImage
+Just delete the file:
+```bash
+rm ~/Downloads/Velocity-Bridge_*.AppImage
+```
 
 PRs welcome. If you're adding features, please test on at least Fedora or Ubuntu before submitting.
 
