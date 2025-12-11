@@ -14,6 +14,14 @@ fn get_install_type() -> String {
     if let Ok(exe_path) = std::env::current_exe() {
         let path_str = exe_path.to_string_lossy();
         if path_str.starts_with("/usr/") {
+            // Check for distro specific files to identify package manager
+            if std::path::Path::new("/etc/arch-release").exists() {
+                return "aur".to_string();
+            } else if std::path::Path::new("/etc/fedora-release").exists() {
+                return "dnf".to_string();
+            } else if std::path::Path::new("/etc/debian_version").exists() {
+                return "apt".to_string();
+            }
             return "native".to_string();
         }
     }

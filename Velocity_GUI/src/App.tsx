@@ -3,6 +3,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
 import {
   Settings,
   LayoutDashboard,
@@ -44,7 +45,7 @@ function App() {
   const [showToken, setShowToken] = useState(false);
   const [serverEnabled, setServerEnabled] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [updateInfo, setUpdateInfo] = useState<{ available: boolean; latestVersion: string; currentVersion: string } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{ available: boolean; latestVersion: string; currentVersion: string; installType?: string; updaterHandle?: any } | null>(null);
   const [autostart, setAutostart] = useState(false);
   const [isTogglingAutostart, setIsTogglingAutostart] = useState(false);
   const [installType, setInstallType] = useState<string | null>(null);
@@ -274,6 +275,26 @@ function App() {
     const currentVersion = serverStatus.version;
 
     try {
+      // 1. AppImage: Use Tauri Native Updater
+      if (installType === "appimage") {
+        try {
+          const update = await check();
+          if (update && update.available) {
+            setUpdateInfo({
+              available: true,
+              latestVersion: update.version,
+              currentVersion,
+              installType: "appimage",
+              updaterHandle: update
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("AppImage update check failed, falling back to GitHub:", e);
+        }
+      }
+
+      // 2. All others: Check GitHub Releases
       const response = await fetch("https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest");
       if (response.ok) {
         const data = await response.json();
@@ -283,13 +304,8 @@ function App() {
           setUpdateInfo({
             available: true,
             latestVersion,
-            currentVersion
-          });
-        } else {
-          setUpdateInfo({
-            available: false,
-            latestVersion: latestVersion || currentVersion,
-            currentVersion
+            currentVersion,
+            installType: installType || "manual"
           });
         }
       }
@@ -440,21 +456,84 @@ X-GNOME-Autostart-enabled=true`;
             fontSize: '14px'
           }}>
             <span>
-              🎉 <strong>Update available!</strong> Version {updateInfo.latestVersion} is now available (you have {updateInfo.currentVersion})
+              🎉 <strong>Update available!</strong> Version {updateInfo.latestVersion} is now available.
             </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {installType === "native" ? (
-                <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '4px' }}>
-                  Use system package manager to update (dnf/apt)
-                </span>
-              ) : (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+
+              {/* AppImage: Native Updater */}
+              {updateInfo.installType === "appimage" && updateInfo.updaterHandle && (
+                <button
+                  onClick={async () => {
+                    if (confirm(`Install update v${updateInfo.latestVersion} and restart?`)) {
+                      await updateInfo.updaterHandle.downloadAndInstall();
+                      // App will restart automatically
+                    }
+                  }}
+                  style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Running AppImage: Install & Restart
+                </button>
+              )}
+
+              {/* AppImage Fallback (GitHub) */}
+              {updateInfo.installType === "appimage" && !updateInfo.updaterHandle && (
+                <button
+                  onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                  style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                >
+                  Download New AppImage
+                </button>
+              )}
+
+              {/* AUR Instruction */}
+              {updateInfo.installType === "aur" && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                  <span>yay -S velocity-bridge</span>
+                  <button onClick={() => copyToClipboard('yay -S velocity-bridge')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>📋</button>
+                </div>
+              )}
+
+              {/* DNF Instruction */}
+              {updateInfo.installType === "dnf" && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                  <span>sudo dnf update velocity-bridge</span>
+                  <button onClick={() => copyToClipboard('sudo dnf update velocity-bridge')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>📋</button>
+                </div>
+              )}
+
+              {/* APT Instruction */}
+              {updateInfo.installType === "apt" && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                  <span>sudo apt update && sudo apt install velocity-bridge</span>
+                  <button onClick={() => copyToClipboard('sudo apt update && sudo apt install velocity-bridge')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>📋</button>
+                </div>
+              )}
+
+              {/* Native Fallback */}
+              {updateInfo.installType === "native" && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '6px 10px', borderRadius: '4px' }}>
+                    Update via your System Software Center or Terminal
+                  </span>
+                  <button
+                    onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px' }}
+                  >
+                    View Release
+                  </button>
+                </div>
+              )}
+
+              {/* Manual Fallback */}
+              {(updateInfo.installType === "manual" || !updateInfo.installType) && (
                 <button
                   onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
                   style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                 >
-                  {installType === "appimage" ? "Download New AppImage" : "Download Update"}
+                  Download Update
                 </button>
               )}
+
               <button
                 onClick={() => setUpdateInfo(null)}
                 style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px' }}
@@ -783,6 +862,7 @@ X-GNOME-Autostart-enabled=true`;
                   </p>
                 </div>
               </div>
+
             </div>
           )
         }
