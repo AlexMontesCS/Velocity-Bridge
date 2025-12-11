@@ -165,7 +165,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$PROJECT_DIR
+WorkingDirectory=$PROJECT_DIR/systemd
 Environment="SECURITY_TOKEN=$SECURITY_TOKEN"
 ExecStart=$(which python3) -m uvicorn main:app --host 0.0.0.0 --port 8080
 Restart=always

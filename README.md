@@ -68,8 +68,13 @@ Grab from [releases](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 </details>
 
 ### Headless (no GUI)
+For servers or users who don't want a window. Auto-installs dependency checks, systemd service, and tokens:
 
-For servers or if you just don't want a window, see the `systemd/` folder for the headless Python server (`main.py`) and a sample systemd service file.
+```bash
+curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
+```
+
+Or manually see the `systemd/` folder for the headless Python server (`main.py`).
 
 Runs as a systemd user service. Check on it with:
 ```bash
