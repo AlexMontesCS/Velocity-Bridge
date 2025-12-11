@@ -1,6 +1,6 @@
 # Velocity Bridge
 
-[![Version](https://img.shields.io/badge/version-2.0.5-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.0.8-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 
@@ -17,7 +17,7 @@ I built this because I use an iPhone but my daily driver is Fedora. Apple's Univ
 - Copy an image → it shows up in your Linux clipboard (and saves to Downloads)
 - Works over your local network, no cloud involved
 
-## What's New in v2.0.0
+## Key Features
 
 Complete rewrite. The GUI now uses [Tauri](https://tauri.app/) instead of Python/Tk — faster startup, smaller footprint, actually looks native.
 
