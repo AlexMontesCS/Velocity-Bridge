@@ -307,6 +307,14 @@ function App() {
             currentVersion,
             installType: installType || "manual"
           });
+        } else {
+          // Up to date
+          setUpdateInfo({
+            available: false,
+            latestVersion,
+            currentVersion,
+            installType: installType || "manual"
+          });
         }
       }
     } catch (err) {

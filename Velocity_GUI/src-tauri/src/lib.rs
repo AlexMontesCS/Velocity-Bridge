@@ -44,7 +44,7 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .invoke_handler(tauri::generate_handler![get_install_type])
+        .invoke_handler(tauri::generate_handler![get_install_type, install_update])
         .setup(|app| {
             // Create tray menu
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
@@ -97,4 +97,30 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn install_update(package_path: String) -> Result<(), String> {
+    use std::process::Command;
+    
+    // 1. Make executable (just in case)
+    let _ = Command::new("chmod")
+        .args(["+x", &package_path])
+        .status();
+    
+    // 2. Spawn the installer in DETACHED mode
+    // Note: In Rust/Tauri 2, spawning a command and exiting *might* kill child?
+    // But usually simple spawn() leaves it running if we don't wait.
+    // However, to be safe, we should probably ensure it outlives us.
+    // Linux 'nohup' or similar isn't strictly needed if we just exit.
+    
+    Command::new(package_path)
+        .arg("--silent")
+        .spawn()
+        .map_err(|e| format!("Failed to launch updater: {}", e))?;
+        
+    // 3. Kill server and exit immediately
+    let _ = Command::new("pkill").args(["-f", "server-x86_64"]).status();
+    let _ = Command::new("fuser").args(["-k", "8080/tcp"]).status();
+    std::process::exit(0);
 }
