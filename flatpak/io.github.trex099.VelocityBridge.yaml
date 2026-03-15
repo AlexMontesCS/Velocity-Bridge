@@ -33,8 +33,8 @@ modules:
     buildsystem: simple
     build-commands:
       # Extract AppImage
-      - chmod +x Velocity-Bridge_3.0.3_amd64.AppImage
-      - ./Velocity-Bridge_3.0.3_amd64.AppImage --appimage-extract
+      - chmod +x Velocity-Bridge_3.0.4_amd64.AppImage
+      - ./Velocity-Bridge_3.0.4_amd64.AppImage --appimage-extract
       
       # Install binary only - DO NOT copy bundled libs (fixes OpenSSL mismatch)
       - install -Dm755 squashfs-root/usr/bin/velocity-bridge /app/bin/velocity-bridge
@@ -51,9 +51,9 @@ modules:
     sources:
       # AppImage from GitHub Release
       - type: file
-        url: https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.3/Velocity-Bridge_3.0.3_amd64.AppImage
-        sha256: 3937bff737919e3590f312633c6c7a780b76484d744bca347020b70f5c38079d
-        dest-filename: Velocity-Bridge_3.0.3_amd64.AppImage
+        url: https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage
+        sha256: c06b9703219e7db7025bae5ee3feaf03f79d788d432fdf86d9c1a50b5d9f5579
+        dest-filename: Velocity-Bridge_3.0.4_amd64.AppImage
       
       # Desktop file
       - type: file

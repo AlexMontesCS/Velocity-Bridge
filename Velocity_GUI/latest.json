@@ -1,11 +1,11 @@
 {
-    "version": "3.0.3",
-    "notes": "v3.0.3 - Fix backend hangs while idle",
+    "version": "3.0.4",
+    "notes": "v3.0.4 - Fix /status socket leak causing idle failures",
     "pub_date": "2026-03-09T12:03:26Z",
     "platforms": {
         "linux-x86_64": {
             "signature": "",
-            "url": "https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.3/Velocity-Bridge_3.0.3_amd64.AppImage"
+            "url": "https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage"
         }
     }
 }

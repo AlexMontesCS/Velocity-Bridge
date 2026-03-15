@@ -1,6 +1,6 @@
 # Velocity Bridge
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0.4-blue)](https://github.com/Trex099/Velocity-Bridge/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![AUR](https://img.shields.io/aur/version/velocity-bridge)](https://aur.archlinux.org/packages/velocity-bridge)
 [![Copr](https://img.shields.io/badge/copr-trex099%2Fvelocity--bridge-blue)](https://copr.fedorainfracloud.org/coprs/trex099/velocity-bridge/)
@@ -46,20 +46,6 @@ curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/instal
 ```bash
 sudo dnf copr enable trex099/velocity-bridge
 sudo dnf install velocity-bridge libappindicator-gtk3
-```
-
-**Arch Linux**:
-```bash
-yay -S velocity-bridge
-```
-
-**NixOS**:
-```bash
-# Execute directly
-nix run github:Trex099/Velocity-Bridge
-
-# Install to profile
-nix profile install github:Trex099/Velocity-Bridge
 ```
 
 ### Headless Installation

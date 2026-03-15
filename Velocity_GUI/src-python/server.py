@@ -9,10 +9,12 @@ import base64
 import logging
 import os
 import re
+import socket
 import subprocess
 import tempfile
 import webbrowser
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -862,7 +864,6 @@ async def upload_images(request: Request, payload: MultiImagesPayload):
 
 def get_local_ip():
     """Get the local IP address of this machine."""
-    import socket
     try:
         # Create a dummy socket to connect to an external IP (doesn't actually connect)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -875,67 +876,34 @@ def get_local_ip():
         return "127.0.0.1"
 
 
+@lru_cache(maxsize=1)
+def get_hostname_display():
+    """Return a stable hostname label without opening a new mDNS stack per poll."""
+    hostname = socket.gethostname().strip()
+    if not hostname or hostname == "localhost":
+        return None
+
+    try:
+        socket.inet_aton(hostname)
+        return None
+    except OSError:
+        pass
+
+    if hostname.endswith(".local"):
+        return hostname
+
+    return f"{hostname}.local"
+
+
 @app.get("/status")
 # No rate limit - UI needs to poll frequently
 async def get_status(request: Request):
     """Get server status and connection info."""
     # Check IP whitelist but minimal security so UI can see it locally
     check_ip_whitelist(request)
-    
-    import socket
+
     ip = get_local_ip()
-    
-    # Try to resolve actual mDNS hostname natively using zeroconf
-    # This works without any system binaries (avahi-resolve etc)
-    hostname_display = None
-    try:
-        from zeroconf import Zeroconf
-        import socket as py_socket
-        
-        # We try to find the name of the current machine in mDNS
-        # This is a bit of a hack: we just want to see how the network identifies us
-        zc = Zeroconf()
-        try:
-            # Most Linux systems register their hostname.local automatically
-            host = py_socket.gethostname()
-            if not host.endswith(".local"):
-                host = f"{host}.local"
-            # If zeroconf can see it, that's what the iPhone will see too
-            hostname_display = host
-        finally:
-            zc.close()
-    except Exception as e:
-        logger.debug(f"Zeroconf detection failed: {e}")
-
-    # Fallback to subprocess avahi-resolve if zeroconf failed
-    if not hostname_display:
-        try:
-            result = subprocess.run(
-                ["avahi-resolve", "-a", ip],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            if result.returncode == 0:
-                parts = result.stdout.strip().split()
-                if len(parts) >= 2:
-                    hostname_display = parts[1]
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-
-    # Last resort: Construct it manually
-    if not hostname_display:
-        hostname = socket.gethostname()
-        if hostname and hostname != "localhost" and not hostname.startswith("127."):
-            is_ip = False
-            try:
-                socket.inet_aton(hostname)
-                is_ip = True
-            except socket.error:
-                pass
-                
-            if not is_ip:
-                hostname_display = f"{hostname}.local"
+    hostname_display = get_hostname_display()
 
     # Detect installation method
     # If the APPIMAGE environment variable is set, it's an AppImage (or Curl install)
@@ -944,7 +912,7 @@ async def get_status(request: Request):
     return {
         "status": "running",
         "version": VERSION,
-        "ip": get_local_ip(),
+        "ip": ip,
         "hostname": hostname_display,  # mDNS format or None
         "port": 8080,
         "token": SECURITY_TOKEN,  # Send token so UI can display it

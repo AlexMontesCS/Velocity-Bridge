@@ -9,7 +9,7 @@
 set -euo pipefail
 
 VERSION="2.0.0"
-FALLBACK_VER="3.0.3"
+FALLBACK_VER="3.0.4"
 REPO="Trex099/Velocity-Bridge"
 
 BIN_DIR="$HOME/.local/bin"
@@ -418,7 +418,10 @@ do_appimage() {
     spinner "Getting icon..." curl -fsSL \
         "https://raw.githubusercontent.com/$REPO/main/assets/velocity-icon.png" \
         -o "$ICON_DIR/velocity-bridge.png" || true
-    
+
+    setup_firewalld
+    setup_ufw
+
     ok "AppImage installed to $BIN_DIR/velocity-bridge"
 }
 

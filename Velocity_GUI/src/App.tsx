@@ -366,7 +366,7 @@ function App() {
         setUpdateInfo({
           available: true,
           latestVersion: update.version,
-          currentVersion: serverStatus?.version || "3.0.3",
+          currentVersion: serverStatus?.version || "3.0.4",
           updaterHandle: update
         });
         showStatus("Update available!");
@@ -375,7 +375,7 @@ function App() {
         setUpdateInfo({
           available: false,
           latestVersion: "",
-          currentVersion: serverStatus?.version || "3.0.3"
+          currentVersion: serverStatus?.version || "3.0.4"
         });
         showStatus("You're up to date");
       }
@@ -1053,7 +1053,7 @@ function App() {
                         <label>Application Version</label>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <span style={{ fontFamily: 'monospace', background: '#f0f0f0', padding: '4px 8px', borderRadius: '4px', fontSize: '13px' }}>
-                            v{serverStatus?.version || "3.0.3"}
+                            v{serverStatus?.version || "3.0.4"}
                           </span>
                           {updateInfo?.available && !isDownloading && (
                             <span className="update-badge" style={{ background: '#007AFF', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>

@@ -1,5 +1,5 @@
 Name:           velocity-bridge
-Version: 3.0.3
+Version: 3.0.4
 Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
@@ -73,6 +73,9 @@ update-desktop-database %{_datadir}/applications &>/dev/null || :
 %{_datadir}/icons/hicolor/256x256/apps/velocity-bridge.png
 
 %changelog
+* Mon Mar 16 2026 Trex099 <trex099@github.com> - 3.0.4-1
+- Fix backend /status socket leak leading to idle failures
+
 * Mon Mar 09 2026 Trex099 <trex099@github.com> - 3.0.3-1
 - Fix idle backend hangs in the desktop app
 - Refactored token management into Tauri (Rust) side
