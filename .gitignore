@@ -18,24 +18,7 @@ src-tauri/velocity.key
 *.ppk
 
 # ------------------------------------------
-#  2. AI & AUTO-GENERATED ARTIFACTS
-# ------------------------------------------
-.gemini/
-.cursor/
-.claude/
-.chatgpt/
-.openai/
-.copilot/
-_ai_context/
-*.ai
-*.bkp
-*.tmp
-*.bak
-*.temp
-
-
-# ------------------------------------------
-#  3. TEST & DEV CONFIGURATION (LOCAL ONLY)
+#  2. TEST & DEV CONFIGURATION (LOCAL ONLY)
 # ------------------------------------------
 # User requested these be kept local
 src-python/pytest.ini

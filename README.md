@@ -5,12 +5,12 @@
 [![AUR](https://img.shields.io/aur/version/velocity-bridge)](https://aur.archlinux.org/packages/velocity-bridge)
 [![Copr](https://img.shields.io/badge/copr-trex099%2Fvelocity--bridge-blue)](https://copr.fedorainfracloud.org/coprs/trex099/velocity-bridge/)
 
-Velocity Bridge provides seamless **Universal Clipboard** integration between iOS and Linux. This utility enables bidirectional synchronization of text and image data over a local network, serving as a privacy-focused, open-source alternative to AirDrop.
+Velocity Bridge provides seamless **Universal Clipboard** integration between iOS and desktop systems (Linux and Windows). This utility enables bidirectional synchronization of text and image data over a local network, serving as a privacy-focused, open-source alternative to AirDrop.
 
 ## Core Functionality
 
-- **Bidirectional Synchronization**: Transfer text and image data from iOS to Linux and from Linux to iOS.
-- **Image Support**: Images copied to the Linux clipboard are automatically transmitted to iOS, and vice versa.
+- **Bidirectional Synchronization**: Transfer text and image data from iOS to Linux/Windows and from Linux/Windows to iOS.
+- **Image Support**: Images copied to the desktop clipboard are automatically transmitted to iOS, and vice versa.
 - **Data Privacy**: All transmissions occur within the local network; no data is ever uploaded to external servers.
 - **Native performance**: Developed with Tauri to ensure a minimal resource footprint and native OS integration.
 
@@ -47,6 +47,10 @@ curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/instal
 sudo dnf copr enable trex099/velocity-bridge
 sudo dnf install velocity-bridge libappindicator-gtk3
 ```
+
+### Windows Installation
+
+Download the Windows installer from the [releases page](https://github.com/Trex099/Velocity-Bridge/releases/latest).
 
 ### Headless Installation
 For environments without a graphical user interface, a background service implementation is available. This configuration includes dependency validation and systemd service integration.
@@ -85,7 +89,7 @@ Velocity Bridge utilizes iOS Shortcuts to interface with the clipboard. To confi
 ## Technical Architecture
 
 ```
-[  iOS Device  ]  <─── HTTP/REST ───>  [  Linux Host (Tauri/Rust)  ]
+[  iOS Device  ]  <─── HTTP/REST ───>  [  Linux/Windows Host (Tauri/Rust)  ]
                                                   │
                                          [ Systems Interface ]
                                          (wl-copy / xclip / xsel)
@@ -99,6 +103,8 @@ Ensure the host firewall permits ingress traffic on TCP port 8080:
 sudo firewall-cmd --add-port=8080/tcp --permanent
 sudo firewall-cmd --reload
 ```
+
+On Windows, allow the application through Windows Defender Firewall when prompted, or open TCP port 8080 manually in the firewall settings.
 
 ### Clipboard Inconsistency
 Verify that the appropriate clipboard manager for your display server is installed:

@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+slowapi
+pillow
+pillow-heif
+zeroconf
+pywin32
+pyinstaller

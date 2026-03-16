@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="FirewallExceptionCmp" Guid="8C31A2F5-1C2E-4D6B-A394-1423E77134F1" Win64="yes">
+        <RegistryValue Root="HKCU" Key="Software\arsh\Velocity-Bridge" Name="Firewall Exception" Type="integer" Value="1" KeyPath="yes" />
+        <fire:FirewallException
+          Id="FWX1"
+          Name="Velocity Bridge"
+          Scope="any"
+          IgnoreFailure="yes"
+          Program="[INSTALLDIR]velocity-backend.exe" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
