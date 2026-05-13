@@ -149,6 +149,7 @@ class RelayTransport:
         Stream SSE events using curl. Blocks until timeout or close.
         """
         try:
+            self.logger.info(f"SSE: Connecting to {self._base_url(cfg)}/v1/pairs/.../subscribe/desktop")
             command = [
                 "curl",
                 "--silent",
@@ -169,20 +170,26 @@ class RelayTransport:
                 text=True,
             )
             
+            self.logger.info(f"SSE: curl returned {result.returncode}, stdout length: {len(result.stdout)}, stderr: {result.stderr[:100] if result.stderr else 'none'}")
+            
             if result.returncode != 0:
-                self.logger.debug(f"SSE curl error: {result.stderr}")
+                self.logger.warning(f"SSE curl error: {result.stderr}")
                 raise RuntimeError(result.stderr or "SSE connection failed")
             
             # Parse SSE stream
+            messages_received = 0
             for line in result.stdout.splitlines():
                 if line.startswith("data: "):
                     try:
                         message = json.loads(line[6:])  # Remove "data: " prefix
                         self._handle_sse_message(cfg, message)
+                        messages_received += 1
+                        self._messages_received += 1
                         self.logger.debug(f"SSE received message: {message.get('id')}")
                     except json.JSONDecodeError as e:
                         self.logger.warning(f"Failed to parse SSE event: {e}")
                         continue
+            self.logger.info(f"SSE: Connection closed normally, received {messages_received} messages")
         except subprocess.TimeoutExpired:
             self.logger.debug("SSE connection timed out (expected after 30s)")
         except Exception as exc:
