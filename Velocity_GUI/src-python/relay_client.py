@@ -131,6 +131,8 @@ class RelayTransport:
                     "token": cfg["relay_token"],
                     "timeout": 30,
                     "max_events": 10,
+                    # Omitting `after` made every SSE reconnect replay all KV messages (30s loop).
+                    "after": int(self._desktop_cursor),
                 }
             )
             url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/subscribe/desktop?{query}"
@@ -146,55 +148,83 @@ class RelayTransport:
 
     def _stream_sse_with_curl(self, url: str, cfg: dict[str, Any]) -> None:
         """
-        Stream SSE events using curl. Blocks until timeout or close.
+        Stream SSE using curl. Each ``data:`` line must be handled as soon as it arrives.
+
+        subprocess.run(..., capture_output=True) waits for curl to exit and buffers all
+        stdout, so clipboard delivery was delayed until the SSE connection ended (~30s).
+        Popen + curl -N fixes that.
         """
+        self.logger.info(
+            "SSE: streaming %s/v1/pairs/.../subscribe/desktop",
+            self._base_url(cfg),
+        )
+        command = [
+            "curl",
+            "--silent",
+            "--show-error",
+            "-N",
+            "--max-time",
+            "38",
+            "--header",
+            "Accept: text/event-stream",
+            "--header",
+            f"User-Agent: {USER_AGENT}",
+            url,
+        ]
+        proc = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        messages_received = 0
+        stderr_data = ""
         try:
-            self.logger.info(f"SSE: Connecting to {self._base_url(cfg)}/v1/pairs/.../subscribe/desktop")
-            command = [
-                "curl",
-                "--silent",
-                "--show-error",
-                "--max-time",
-                "35",
-                "--header",
-                "Accept: text/event-stream",
-                "--header",
-                f"User-Agent: {USER_AGENT}",
-                url,
-            ]
-            
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                timeout=40,
-                text=True,
-            )
-            
-            self.logger.info(f"SSE: curl returned {result.returncode}, stdout length: {len(result.stdout)}, stderr: {result.stderr[:100] if result.stderr else 'none'}")
-            
-            if result.returncode != 0:
-                self.logger.warning(f"SSE curl error: {result.stderr}")
-                raise RuntimeError(result.stderr or "SSE connection failed")
-            
-            # Parse SSE stream
-            messages_received = 0
-            for line in result.stdout.splitlines():
+            if proc.stdout is None:
+                raise RuntimeError("curl stdout not available")
+            for line in proc.stdout:
+                if self._stop.is_set():
+                    proc.terminate()
+                    break
                 if line.startswith("data: "):
                     try:
-                        message = json.loads(line[6:])  # Remove "data: " prefix
+                        message = json.loads(line[6:].strip())
                         self._handle_sse_message(cfg, message)
                         messages_received += 1
-                        self._messages_received += 1
-                        self.logger.debug(f"SSE received message: {message.get('id')}")
+                        self.logger.debug(
+                            "SSE received message: %s", message.get("id")
+                        )
                     except json.JSONDecodeError as e:
-                        self.logger.warning(f"Failed to parse SSE event: {e}")
-                        continue
-            self.logger.info(f"SSE: Connection closed normally, received {messages_received} messages")
-        except subprocess.TimeoutExpired:
-            self.logger.debug("SSE connection timed out (expected after 30s)")
-        except Exception as exc:
-            self.logger.debug(f"SSE streaming error: {exc}")
-            raise
+                        self.logger.warning("Failed to parse SSE event: %s", e)
+        finally:
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                try:
+                    stderr_data = proc.stderr.read() or ""
+                except Exception:
+                    stderr_data = ""
+            try:
+                rc = proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    rc = proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    rc = -1
+
+        # 0 = clean close; 28 = CURLE_OPERATION_TIMEDOUT; negative = signal after terminate
+        if rc not in (0, 28) and not (isinstance(rc, int) and rc < 0):
+            detail = (stderr_data or "").strip() or f"curl exit {rc}"
+            self.logger.warning("SSE curl: %s", detail[:200])
+            raise RuntimeError(detail)
+
+        self.logger.info(
+            "SSE: stream ended (rc=%s), received %s message(s)",
+            rc,
+            messages_received,
+        )
 
     def _handle_sse_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
         """Handle a message received via SSE."""
@@ -242,6 +272,7 @@ class RelayTransport:
 
         self._post_message(cfg, "phone", response)
         self._messages_sent += 1
+        self._messages_received += 1
         self._last_event = "Answered phone clipboard request"
 
     def _handle_clipboard_payload(self, payload: dict[str, Any]) -> None:
