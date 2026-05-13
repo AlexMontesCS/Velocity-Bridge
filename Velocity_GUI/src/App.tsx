@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Command } from "@tauri-apps/plugin-shell";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -55,7 +55,6 @@ interface RelayStatus {
   pair_id?: string;
   last_error?: string | null;
   last_event?: string | null;
-  last_poll?: string | null;
   messages_received?: number;
   messages_sent?: number;
 }
@@ -86,7 +85,6 @@ function App() {
   const [relayUrl, setRelayUrl] = useState("");
   const [relayPairId, setRelayPairId] = useState("");
   const [relayToken, setRelayToken] = useState("");
-  const [relayPollSeconds, setRelayPollSeconds] = useState(3);
   const [isSavingRelay, setIsSavingRelay] = useState(false);
   const [isPushingRelay, setIsPushingRelay] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -121,6 +119,34 @@ function App() {
   useEffect(() => {
     serverEnabledRef.current = serverEnabled;
   }, [serverEnabled]);
+
+  const refreshLocalBackend = useCallback(async () => {
+    if (!serverEnabledRef.current) return;
+    try {
+      const statusRes = await fetch("http://localhost:8080/status");
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setServerStatus(statusData);
+        setConnectionStatus("Connected");
+        if (statusData.token) {
+          const historyRes = await fetch(
+            `http://localhost:8080/history?limit=50&token=${encodeURIComponent(statusData.token)}`,
+          );
+          if (historyRes.ok) {
+            const data = await historyRes.json();
+            setHistory(data.items || []);
+          }
+        }
+      } else {
+        setServerStatus(null);
+        setConnectionStatus("Reconnecting...");
+      }
+    } catch (e) {
+      console.error("Fetch error:", e);
+      setServerStatus(null);
+      setConnectionStatus("Reconnecting...");
+    }
+  }, []);
 
   const clearRestartTimer = () => {
     if (restartTimerRef.current !== null) {
@@ -298,46 +324,19 @@ function App() {
     };
   }, []);
 
-  // Poll History & Status
+  // Refresh status and history from the local backend (GUI ↔ localhost).
+  // Phone→desktop relay SSE is handled only by the sidecar (relay_client.py); a second browser SSE caused relay errors.
   useEffect(() => {
-    // Don't poll if server is disabled
     if (!serverEnabled) {
       return;
     }
-
-    const fetchData = async () => {
-      try {
-        const statusRes = await fetch("http://localhost:8080/status");
-        if (statusRes.ok) {
-          const statusData = await statusRes.json();
-          setServerStatus(statusData);
-          setConnectionStatus("Connected");
-
-          // Fetch history with token from status
-          if (statusData.token) {
-            const historyRes = await fetch(`http://localhost:8080/history?limit=50&token=${encodeURIComponent(statusData.token)}`);
-            if (historyRes.ok) {
-              const data = await historyRes.json();
-              setHistory(data.items || []);
-            }
-          }
-        } else {
-          setServerStatus(null);
-          setConnectionStatus("Reconnecting...");
-        }
-      } catch (e) {
-        console.error("Fetch error:", e);
-        setServerStatus(null);
-        setConnectionStatus("Reconnecting...");
-      }
-    };
-
-    // Smart polling: faster when viewing history (1.5s), slower otherwise (3s)
-    const pollInterval = activeTab === "history" ? 1500 : 3000;
-    const interval = setInterval(fetchData, pollInterval);
-    fetchData();
+    const refreshMs = activeTab === "history" ? 1500 : 3000;
+    const interval = setInterval(() => {
+      void refreshLocalBackend();
+    }, refreshMs);
+    void refreshLocalBackend();
     return () => clearInterval(interval);
-  }, [serverEnabled, activeTab]); // Re-run when serverEnabled or tab changes
+  }, [serverEnabled, activeTab, refreshLocalBackend]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -489,7 +488,6 @@ function App() {
             setRelayUrl(data.relay_url ?? "");
             setRelayPairId(data.relay_pair_id ?? "");
             setRelayToken(data.relay_token ?? "");
-            setRelayPollSeconds(data.relay_poll_seconds ?? 3);
           }
         })
         .catch(() => { });
@@ -586,7 +584,6 @@ function App() {
           relay_url: relayUrl,
           relay_pair_id: relayPairId,
           relay_token: relayToken,
-          relay_poll_seconds: relayPollSeconds,
         }),
       });
       if (res.ok) {
@@ -595,7 +592,6 @@ function App() {
         setRelayUrl(data.relay_url ?? relayUrl);
         setRelayPairId(data.relay_pair_id ?? relayPairId);
         setRelayToken(data.relay_token ?? relayToken);
-        setRelayPollSeconds(data.relay_poll_seconds ?? relayPollSeconds);
         showStatus("Relay settings saved");
       } else {
         showStatus("Relay settings failed");
@@ -644,7 +640,7 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         console.log("Token regenerated:", data.token);
-        // The new token will be picked up on next status poll
+        // The new token will be picked up on the next status refresh
       } else {
         console.error("Failed to regenerate token");
         alert("Failed to regenerate token");
@@ -1176,21 +1172,6 @@ function App() {
                           Copy
                         </button>
                       </div>
-                    </div>
-
-                    <div className="setting-item" style={{ alignItems: 'center' }}>
-                      <div>
-                        <label>Poll Interval</label>
-                        <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>Seconds between relay checks</p>
-                      </div>
-                      <input
-                        type="number"
-                        min={1}
-                        max={30}
-                        value={relayPollSeconds}
-                        onChange={(e) => setRelayPollSeconds(Number(e.target.value))}
-                        style={{ width: '76px' }}
-                      />
                     </div>
 
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap' }}>

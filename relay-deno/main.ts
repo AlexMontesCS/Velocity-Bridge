@@ -276,14 +276,28 @@ async function subscribeSSE(
             eventCount++;
             debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
 
-            // Send as SSE event
-            const event = `data: ${JSON.stringify(message)}\n\n`;
-            controller.enqueue(encoder.encode(event));
+            // Send as SSE event (client may disconnect mid-stream)
+            try {
+              const event = `data: ${JSON.stringify(message)}\n\n`;
+              controller.enqueue(encoder.encode(event));
+            } catch (enqueueErr) {
+              debugLog("SSE enqueue failed (client likely disconnected)", enqueueErr);
+              try {
+                controller.close();
+              } catch {
+                /* already closed */
+              }
+              return;
+            }
 
             // Close after max events or timeout
             if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
               debugLog("SSE closing", { eventCount, pairId, target });
-              controller.close();
+              try {
+                controller.close();
+              } catch {
+                /* already closed */
+              }
               return;
             }
           }
@@ -294,10 +308,23 @@ async function subscribeSSE(
           debugLog("SSE interrupted", { eventCount, pairId, target });
         } else {
           console.error("SSE error:", error);
-          const errorMsg = `event: error\ndata: ${JSON.stringify({ detail: "Stream error" })}\n\n`;
-          controller.enqueue(encoder.encode(errorMsg));
+          const detail =
+            error instanceof Error && error.message
+              ? error.message.slice(0, 300)
+              : "Stream error";
+          try {
+            const errorMsg =
+              `event: error\ndata: ${JSON.stringify({ detail })}\n\n`;
+            controller.enqueue(encoder.encode(errorMsg));
+          } catch {
+            /* controller closed */
+          }
         }
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
       }
     },
   });
