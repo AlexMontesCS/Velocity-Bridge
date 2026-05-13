@@ -293,112 +293,128 @@ async function subscribeSSE(
         // Stream the initial ":ready" comment to confirm connection
         controller.enqueue(encoder.encode(": ready\n\n"));
 
-        let lastEmitted = safeNumber(params.get("after"), 0);
-        const correlationId = params.get("correlation_id");
-
-        const emitMessage = (message: StoredMessage): boolean => {
-          eventCount++;
-          debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
+        const watchdog = setTimeout(() => {
           try {
-            const event = `data: ${JSON.stringify(message)}\n\n`;
-            controller.enqueue(encoder.encode(event));
-          } catch (enqueueErr) {
-            debugLog("SSE enqueue failed (client likely disconnected)", enqueueErr);
-            try {
-              controller.close();
-            } catch {
-              /* already closed */
-            }
-            return false;
+            debugLog("SSE watchdog forced close", { pairId, target });
+            controller.close();
+          } catch {
+            /* already closed */
           }
+        }, timeoutMs + 2500);
+
+        try {
+          let lastEmitted = safeNumber(params.get("after"), 0);
+          const correlationId = params.get("correlation_id");
+
+          const emitMessage = (message: StoredMessage): boolean => {
+            eventCount++;
+            debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
+            try {
+              const event = `data: ${JSON.stringify(message)}\n\n`;
+              controller.enqueue(encoder.encode(event));
+            } catch (enqueueErr) {
+              debugLog("SSE enqueue failed (client likely disconnected)", enqueueErr);
+              try {
+                controller.close();
+              } catch {
+                /* already closed */
+              }
+              return false;
+            }
+            if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
+              debugLog("SSE closing", { eventCount, pairId, target });
+              try {
+                controller.close();
+              } catch {
+                /* already closed */
+              }
+              return false;
+            }
+            return true;
+          };
+
+          const drainBatch = async (): Promise<void> => {
+            const remaining = maxEvents - eventCount;
+            if (remaining <= 0) return;
+            const batch = await collectMessagesForPair(
+              pairId,
+              target,
+              lastEmitted,
+              Math.min(remaining, MAX_LIMIT),
+              correlationId,
+            );
+            if (batch.length === 0) return;
+            for (const message of batch) {
+              if (!emitMessage(message)) return;
+              lastEmitted = Math.max(lastEmitted, message.id);
+            }
+          };
+
+          // Backlog already in KV (e.g. client reconnects with ?after=)
+          await drainBatch();
           if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
-            debugLog("SSE closing", { eventCount, pairId, target });
             try {
               controller.close();
             } catch {
               /* already closed */
             }
-            return false;
+            return;
           }
-          return true;
-        };
 
-        const drainBatch = async (): Promise<void> => {
-          const remaining = maxEvents - eventCount;
-          if (remaining <= 0) return;
-          const batch = await collectMessagesForPair(
-            pairId,
-            target,
-            lastEmitted,
-            Math.min(remaining, MAX_LIMIT),
-            correlationId,
-          );
-          if (batch.length === 0) return;
-          for (const message of batch) {
-            if (!emitMessage(message)) return;
-            lastEmitted = Math.max(lastEmitted, message.id);
+          // kv.watch expects an array of keys; it does not watch prefix subtrees.
+          // Do not use bare `for await` on watch: it blocks until the next KV change, so the
+          // client `timeout` is never honored during idle (curl then hits its own --max-time).
+          const watchStream = kv.watch([notifyKey]);
+          const iter = watchStream[Symbol.asyncIterator]();
+
+          try {
+            while (eventCount < maxEvents) {
+              const elapsed = Date.now() - startTime;
+              if (elapsed >= timeoutMs) {
+                debugLog("SSE closing (timeout)", { eventCount, pairId, target });
+                break;
+              }
+              const budget = timeoutMs - elapsed;
+              if (budget <= 0) break;
+
+              const nextKv = iter.next().then((r) => ({ tag: "kv" as const, r }));
+              let tid: ReturnType<typeof setTimeout> | undefined;
+              const onBudget = new Promise<{ tag: "to" }>((resolve) => {
+                tid = setTimeout(() => resolve({ tag: "to" }), budget);
+              });
+              const winner = await Promise.race([nextKv, onBudget]);
+              if (tid !== undefined) clearTimeout(tid);
+              if (winner.tag === "to") {
+                debugLog("SSE closing (idle timeout)", { eventCount, pairId, target });
+                break;
+              }
+              if (winner.r.done) break;
+
+              await drainBatch();
+              if (eventCount >= maxEvents) {
+                debugLog("SSE closing (max_events)", { eventCount, pairId, target });
+                break;
+              }
+            }
+          } finally {
+            // Never await iter.return() — on Deploy it can hang and block controller.close(),
+            // which leaves curl waiting until --max-time.
+            const ret = typeof iter.return === "function" ? iter.return() : undefined;
+            if (ret && typeof (ret as Promise<unknown>).then === "function") {
+              void Promise.race([
+                ret as Promise<unknown>,
+                new Promise<void>((r) => setTimeout(r, 400)),
+              ]).catch(() => {});
+            }
           }
-        };
 
-        // Backlog already in KV (e.g. client reconnects with ?after=)
-        await drainBatch();
-        if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
           try {
             controller.close();
           } catch {
             /* already closed */
           }
-          return;
-        }
-
-        // kv.watch expects an array of keys; it does not watch prefix subtrees.
-        // Do not use bare `for await` on watch: it blocks until the next KV change, so the
-        // client `timeout` is never honored during idle (curl then hits its own --max-time).
-        const watchStream = kv.watch([notifyKey]);
-        const iter = watchStream[Symbol.asyncIterator]();
-
-        try {
-          while (eventCount < maxEvents) {
-            const elapsed = Date.now() - startTime;
-            if (elapsed >= timeoutMs) {
-              debugLog("SSE closing (timeout)", { eventCount, pairId, target });
-              break;
-            }
-            const budget = timeoutMs - elapsed;
-            if (budget <= 0) break;
-
-            const nextKv = iter.next().then((r) => ({ tag: "kv" as const, r }));
-            let tid: ReturnType<typeof setTimeout> | undefined;
-            const onBudget = new Promise<{ tag: "to" }>((resolve) => {
-              tid = setTimeout(() => resolve({ tag: "to" }), budget);
-            });
-            const winner = await Promise.race([nextKv, onBudget]);
-            if (tid !== undefined) clearTimeout(tid);
-            if (winner.tag === "to") {
-              debugLog("SSE closing (idle timeout)", { eventCount, pairId, target });
-              break;
-            }
-            if (winner.r.done) break;
-
-            await drainBatch();
-            if (eventCount >= maxEvents) {
-              debugLog("SSE closing (max_events)", { eventCount, pairId, target });
-              break;
-            }
-          }
         } finally {
-          if (typeof iter.return === "function") {
-            try {
-              await iter.return();
-            } catch {
-              /* ignore */
-            }
-          }
-        }
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
+          clearTimeout(watchdog);
         }
       } catch (error) {
         if (error instanceof Deno.errors.Interrupted) {
