@@ -88,9 +88,7 @@ Velocity Bridge utilizes iOS Shortcuts to interface with the clipboard. To confi
 
 ## Relay Mode for Separate Networks
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AlexMontesCS/Velocity-Bridge/tree/main/relay-cloudflare)
-
-The relay fork adds an outbound HTTPS transport for cases where the phone and
+The relay adds an outbound HTTPS transport for cases where the phone and
 laptop are not on the same network. Instead of the phone calling the laptop
 directly, both devices talk to a small relay URL that you control:
 
@@ -99,20 +97,19 @@ directly, both devices talk to a small relay URL that you control:
 ```
 
 This works across enterprise Wi-Fi, cellular, guest networks, and home networks
-because the laptop does not need an inbound firewall hole. Deploy the relay in
-`relay-cloudflare/` with the button above, then enter its public URL in the
-desktop app's Relay settings. The app generates a Pair ID and Relay Token for
-your iOS Shortcuts.
+because the laptop does not need an inbound firewall hole. 
 
-Security note: relay tokens are hashed on the relay, but clipboard payloads are
+**Deploy on Deno Deploy** (recommended, free tier handles 1M requests/day):
+See [relay-deno/README.md](relay-deno/README.md) for deployment instructions.
+
+**Deploy on your own VPS** (advanced):
+The `relay/` folder contains a regular FastAPI relay for VPS/Fly/Render-style hosting if you prefer Python.
+
+After deploying, enter the relay URL in the desktop app's Relay settings. The app generates a Pair ID and Relay Token for your iOS Shortcuts.
+
+**Security note**: Relay tokens are hashed on the relay, but clipboard payloads are
 stored as plaintext until they expire. Use infrastructure you trust, and put the
-relay behind TLS. The older `relay/` folder contains a regular FastAPI relay for
-VPS/Fly/Render-style hosting if you prefer Python.
-
-If Cloudflare returns `1010 browser_signature_banned`, disable Browser Integrity
-Check for the relay hostname or add a WAF skip rule for Browser Integrity Check.
-The relay is an API endpoint, so browser-only checks can block the desktop
-client before the Worker receives the request.
+relay behind TLS.
 
 ## Technical Architecture
 
