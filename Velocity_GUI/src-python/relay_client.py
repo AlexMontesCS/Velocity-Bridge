@@ -276,6 +276,14 @@ class RelayTransport:
         self._last_event = "Answered phone clipboard request"
 
     def _handle_clipboard_payload(self, payload: dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            return
+        # Relay-internal fields (e.g. sharding markers) must never reach Base64 decode.
+        payload = {
+            k: v
+            for k, v in payload.items()
+            if not (isinstance(k, str) and k.startswith("_relay_"))
+        }
         payload_type = payload.get("type", "text")
         # Do not use `or payload.get("image")` alone: iOS/shortcuts often send `"image": ""`
         # or a truthy placeholder; that wrongly routed plain text into write_image → b64 errors.

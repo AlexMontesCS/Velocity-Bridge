@@ -31,11 +31,14 @@ interface StoredMessage {
 
 const MAX_LIMIT = 100;
 const MESSAGE_TTL_SECONDS = 86400; // 24 hours
-/** Deno KV rejects values > 65536 bytes; keep JSON under this before sharding. */
-const KV_MAX_MESSAGE_BYTES = 62_000;
-/** Base64 ASCII per chunk; must fit in one KV value with margin. */
-const IMAGE_CHUNK_CHARS = 63_000;
-/** Deno atomic ops allow at most 10 mutations — meta + notify + 8 chunks. */
+/**
+ * Deno KV rejects values > 65536 bytes after V8 serialization (not JSON.stringify).
+ * JSON length can be under the limit while the stored value still overflows — use a margin.
+ */
+const KV_MAX_MESSAGE_BYTES = 52_000;
+/** Base64 is ASCII; leave headroom for V8/KV encoding overhead on each chunk value. */
+const IMAGE_CHUNK_CHARS = 50_000;
+/** Deno Deploy: many mutations per atomic; we keep ≤10 for compatibility with older limits. */
 const MAX_IMAGE_SHARDS = 8;
 
 const kv = await Deno.openKv();
@@ -89,23 +92,55 @@ function jsonUtf8ByteLength(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
+function isKvValueTooLargeError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const m = err.message;
+  return (
+    m.includes("65536") ||
+    /value too large|too large \(max \d+ bytes\)/i.test(m)
+  );
+}
+
+function shardCountFromPayload(p: Record<string, unknown>): number {
+  const raw = p._relay_image_shards;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, Math.floor(raw));
+  }
+  if (typeof raw === "string" && /^\d+$/.test(raw)) {
+    return parseInt(raw, 10);
+  }
+  return 0;
+}
+
+/** KV may deserialize string chunks as Uint8Array in some paths; normalize without corrupting bytes. */
+function kvChunkToString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Uint8Array) {
+    return new TextDecoder("latin1").decode(value);
+  }
+  if (value instanceof ArrayBuffer) {
+    return new TextDecoder("latin1").decode(new Uint8Array(value));
+  }
+  throw new HttpError(500, "Relay image shard has unexpected type");
+}
+
 async function hydrateShardedMessage(
   pairId: string,
   target: Target,
   message: StoredMessage,
 ): Promise<StoredMessage> {
   const p = message.payload as Record<string, unknown>;
-  const n = p._relay_image_shards;
-  if (typeof n !== "number" || n <= 0) {
+  const n = shardCountFromPayload(p);
+  if (n <= 0) {
     return message;
   }
   const parts: string[] = [];
   for (let i = 0; i < n; i++) {
-    const r = await kv.get<string>(imageChunkKey(pairId, target, message.id, i));
+    const r = await kv.get(imageChunkKey(pairId, target, message.id, i));
     if (r.value === null || r.value === undefined) {
       throw new HttpError(500, "Relay image shard missing");
     }
-    parts.push(r.value);
+    parts.push(kvChunkToString(r.value));
   }
   const { _relay_image_shards: _s, ...clean } = p;
   const newPayload = { ...clean, image: parts.join("") } as Omit<RelayPayload, "token">;
@@ -272,19 +307,26 @@ async function postMessage(
   const notifyKey = streamNotifyKey(pairId, target);
   const ttlMs = MESSAGE_TTL_SECONDS * 1000;
 
+  const img = payloadWithoutToken.image;
   if (jsonUtf8ByteLength(message) <= KV_MAX_MESSAGE_BYTES) {
-    const commit = await kv.atomic()
-      .set(key, message, { expireIn: ttlMs })
-      .set(notifyKey, id, { expireIn: ttlMs })
-      .commit();
-    if (!commit.ok) {
-      throw new HttpError(503, "Relay could not store message");
+    try {
+      const commit = await kv.atomic()
+        .set(key, message, { expireIn: ttlMs })
+        .set(notifyKey, id, { expireIn: ttlMs })
+        .commit();
+      if (!commit.ok) {
+        throw new HttpError(503, "Relay could not store message");
+      }
+      return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
+    } catch (err) {
+      // V8-serialized KV value can exceed the limit even when JSON.stringify length looks OK.
+      if (!isKvValueTooLargeError(err) || typeof img !== "string" || img.length === 0) {
+        throw err;
+      }
     }
-    return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
   }
 
   // Image base64 exceeds one KV value (~64 KiB). Shard across extra keys (same atomic, ≤10 mutations).
-  const img = payloadWithoutToken.image;
   if (typeof img !== "string" || img.length === 0) {
     throw new HttpError(
       413,
