@@ -1,11 +1,11 @@
 {
-    "version": "3.0.4",
-    "notes": "v3.0.4 - Fix /status socket leak causing idle failures",
-    "pub_date": "2026-03-09T12:03:26Z",
+    "version": "3.0.5",
+    "notes": "v3.0.5 - Fix relay URL encoding for tokens and pair IDs with special characters",
+    "pub_date": "2026-05-13T18:00:00Z",
     "platforms": {
         "linux-x86_64": {
             "signature": "",
-            "url": "https://github.com/AlexMontesCS/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage"
+            "url": "https://github.com/AlexMontesCS/Velocity-Bridge/releases/download/v3.0.5/Velocity-Bridge_3.0.5_amd64.AppImage"
         }
     }
 }

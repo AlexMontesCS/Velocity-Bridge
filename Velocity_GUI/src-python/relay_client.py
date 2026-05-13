@@ -18,7 +18,7 @@ import urllib.request
 from typing import Any, Callable
 
 
-USER_AGENT = "VelocityBridge/3.0.4 (+https://github.com/AlexMontesCS/Velocity-Bridge)"
+USER_AGENT = "VelocityBridge-iOS/3.0"
 
 ClipboardReader = Callable[[], tuple[str, str]]
 ClipboardWriter = Callable[[str, str, str], dict[str, Any]]
@@ -176,7 +176,9 @@ class RelayTransport:
                 "limit": 25,
             }
         )
-        url = f"{self._base_url(cfg)}/v1/pairs/{cfg['relay_pair_id']}/messages/{target}?{query}"
+        pair_id = urllib.parse.quote(cfg['relay_pair_id'], safe='')
+        target_encoded = urllib.parse.quote(target, safe='')
+        url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/messages/{target_encoded}?{query}"
         data = self._request_json("GET", url)
         return data.get("messages", [])
 
@@ -186,7 +188,9 @@ class RelayTransport:
         target: str,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        url = f"{self._base_url(cfg)}/v1/pairs/{cfg['relay_pair_id']}/messages/{target}"
+        pair_id = urllib.parse.quote(cfg['relay_pair_id'], safe='')
+        target_encoded = urllib.parse.quote(target, safe='')
+        url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/messages/{target_encoded}"
         return self._request_json("POST", url, payload)
 
     def _request_json(

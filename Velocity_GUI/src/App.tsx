@@ -230,7 +230,7 @@ function App() {
     // 1. Try graceful shutdown via API
     if (serverStatus?.token) {
       try {
-        await fetch(`http://localhost:8080/shutdown?token=${serverStatus.token}`, { method: "POST" });
+        await fetch(`http://localhost:8080/shutdown?token=${encodeURIComponent(serverStatus.token)}`, { method: "POST" });
         console.log("Sent shutdown signal to backend");
       } catch (e) {
         console.log("Backend already unreachable");
@@ -315,7 +315,7 @@ function App() {
 
           // Fetch history with token from status
           if (statusData.token) {
-            const historyRes = await fetch(`http://localhost:8080/history?limit=50&token=${statusData.token}`);
+            const historyRes = await fetch(`http://localhost:8080/history?limit=50&token=${encodeURIComponent(statusData.token)}`);
             if (historyRes.ok) {
               const data = await historyRes.json();
               setHistory(data.items || []);
@@ -362,7 +362,7 @@ function App() {
     if (!serverStatus?.token) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/history?token=${serverStatus.token}`, {
+      const response = await fetch(`http://localhost:8080/history?token=${encodeURIComponent(serverStatus.token)}`, {
         method: 'DELETE'
       });
 
@@ -617,7 +617,7 @@ function App() {
     if (!serverStatus?.token || isPushingRelay) return;
     setIsPushingRelay(true);
     try {
-      const res = await fetch(`http://localhost:8080/relay/push_clipboard?token=${serverStatus.token}`, {
+      const res = await fetch(`http://localhost:8080/relay/push_clipboard?token=${encodeURIComponent(serverStatus.token)}`, {
         method: "POST",
       });
       if (res.ok) {
@@ -640,7 +640,7 @@ function App() {
     if (!serverStatus?.token) return;
     if (!confirm("Regenerate token?\n\nYou will need to update your iOS shortcuts with the new token.")) return;
     try {
-      const response = await fetch(`http://localhost:8080/regenerate_token?token=${serverStatus.token}`, { method: "POST" });
+      const response = await fetch(`http://localhost:8080/regenerate_token?token=${encodeURIComponent(serverStatus.token)}`, { method: "POST" });
       if (response.ok) {
         const data = await response.json();
         console.log("Token regenerated:", data.token);
