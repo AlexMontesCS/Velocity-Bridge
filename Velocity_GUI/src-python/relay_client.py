@@ -8,6 +8,8 @@ normal HTTPS.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import threading
 import time
 import urllib.error
@@ -188,6 +190,73 @@ class RelayTransport:
         return self._request_json("POST", url, payload)
 
     def _request_json(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if shutil.which("curl"):
+            return self._request_json_with_curl(method, url, payload)
+        return self._request_json_with_urllib(method, url, payload)
+
+    def _request_json_with_curl(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body = b""
+        command = [
+            "curl",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "15",
+            "--request",
+            method,
+            "--header",
+            "Accept: application/json",
+            "--header",
+            f"User-Agent: {USER_AGENT}",
+            "--write-out",
+            "\n%{http_code}",
+            url,
+        ]
+
+        if payload is not None:
+            body = json.dumps(payload).encode("utf-8")
+            command[12:12] = [
+                "--header",
+                "Content-Type: application/json",
+                "--data-binary",
+                "@-",
+            ]
+
+        result = subprocess.run(
+            command,
+            input=body,
+            capture_output=True,
+            timeout=20,
+        )
+        output = result.stdout.decode("utf-8", errors="replace")
+        response_body, _, status_text = output.rpartition("\n")
+
+        try:
+            status_code = int(status_text)
+        except ValueError:
+            detail = result.stderr.decode("utf-8", errors="replace") or output
+            raise RuntimeError(f"Relay request failed: {detail}")
+
+        if status_code >= 400:
+            raise RuntimeError(f"Relay returned HTTP {status_code}: {response_body}")
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", errors="replace") or response_body
+            raise RuntimeError(f"Relay request failed: {detail}")
+        if not response_body:
+            return {}
+        return json.loads(response_body)
+
+    def _request_json_with_urllib(
         self,
         method: str,
         url: str,
