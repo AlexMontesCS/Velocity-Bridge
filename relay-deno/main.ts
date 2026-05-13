@@ -32,6 +32,7 @@ interface StoredMessage {
 const MAX_LIMIT = 100;
 const MESSAGE_TTL_SECONDS = 86400; // 24 hours
 const kv = await Deno.openKv();
+const DEBUG_RELAY = (Deno.env.get("RELAY_DEBUG") || "").toLowerCase() === "true";
 
 class HttpError extends Error {
   constructor(
@@ -83,6 +84,25 @@ function withoutToken(payload: RelayPayload): Omit<RelayPayload, "token"> {
   return rest;
 }
 
+function redactPayload(payload: RelayPayload): Record<string, unknown> {
+  const { token: _token, ...rest } = payload;
+  return {
+    ...rest,
+    token: _token ? "[redacted]" : undefined,
+  };
+}
+
+function debugLog(message: string, data?: unknown): void {
+  if (!DEBUG_RELAY) {
+    return;
+  }
+  if (data === undefined) {
+    console.log(`[relay] ${message}`);
+    return;
+  }
+  console.log(`[relay] ${message}`, data);
+}
+
 function requireTarget(value: string): Target {
   if (value === "desktop" || value === "phone") {
     return value;
@@ -113,11 +133,42 @@ async function requirePair(pairId: string, token: string): Promise<void> {
 }
 
 async function readPayload(request: Request): Promise<RelayPayload> {
-  const payload = (await request.json().catch(() => null)) as RelayPayload | null;
-  if (!payload || typeof payload !== "object") {
-    throw new HttpError(400, "Invalid JSON payload");
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const payload = (await request.json().catch(() => null)) as RelayPayload | null;
+    if (!payload || typeof payload !== "object") {
+      throw new HttpError(400, "Invalid JSON payload");
+    }
+    return payload;
   }
-  return payload;
+
+  if (
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data")
+  ) {
+    const formData = await request.formData().catch(() => null);
+    if (!formData) {
+      throw new HttpError(400, "Invalid form payload");
+    }
+
+    const payload: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      payload[key] = typeof value === "string" ? value : value.name;
+    }
+    return payload as RelayPayload;
+  }
+
+  const text = await request.text();
+  if (!text.trim()) {
+    throw new HttpError(400, "Invalid request payload");
+  }
+
+  try {
+    return JSON.parse(text) as RelayPayload;
+  } catch {
+    throw new HttpError(400, "Invalid request payload");
+  }
 }
 
 async function postMessage(
@@ -201,6 +252,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
+    debugLog("incoming request", {
+      method: request.method,
+      path: url.pathname,
+      query: url.search,
+      contentType: request.headers.get("content-type"),
+      userAgent: request.headers.get("user-agent"),
+    });
 
     // Health check
     if (url.pathname === "/" && request.method === "GET") {
@@ -219,6 +277,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       if (request.method === "POST") {
         const payload = await readPayload(request);
+        debugLog("parsed post payload", redactPayload(payload));
         return json(await postMessage(pairId, target, payload));
       }
 
@@ -242,6 +301,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       }
 
       const payload = await readPayload(request);
+      debugLog("parsed phone payload", redactPayload(payload));
 
       if (action === "send") {
         // iOS sends clipboard → deliver to desktop
