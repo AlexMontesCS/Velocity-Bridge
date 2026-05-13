@@ -1,8 +1,9 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env main.ts",
+    "dev": "deno run --allow-net --allow-env --unstable-kv main.ts",
     "deploy": "deployctl deploy --project=velocity-bridge main.ts"
   },
   "imports": {},
+  "unstable": ["kv"],
   "lock": false
 }
