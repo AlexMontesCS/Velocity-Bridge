@@ -237,6 +237,74 @@ async function getMessages(
   };
 }
 
+async function subscribeSSE(
+  pairId: string,
+  target: Target,
+  params: URLSearchParams,
+): Promise<Response> {
+  const token = params.get("token") || "";
+  await requirePair(pairId, token);
+
+  const prefix = messagePrefix(pairId, target);
+  const timeoutSeconds = safeNumber(params.get("timeout"), 30);
+  const maxEvents = safeNumber(params.get("max_events"), 50);
+
+  let eventCount = 0;
+  const headers = new Headers({
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache",
+    "access-control-allow-origin": "*",
+    "connection": "keep-alive",
+  });
+
+  const body = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const startTime = Date.now();
+      const timeoutMs = timeoutSeconds * 1000;
+
+      try {
+        // Stream the initial ":ready" comment to confirm connection
+        controller.enqueue(encoder.encode(": ready\n\n"));
+
+        const watchIterator = kv.watch(prefix);
+        for await (const entries of watchIterator) {
+          for (const entry of entries) {
+            const message = entry.value as StoredMessage;
+            if (!message) continue;
+
+            eventCount++;
+            debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
+
+            // Send as SSE event
+            const event = `data: ${JSON.stringify(message)}\n\n`;
+            controller.enqueue(encoder.encode(event));
+
+            // Close after max events or timeout
+            if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
+              debugLog("SSE closing", { eventCount, pairId, target });
+              controller.close();
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        if (error instanceof Deno.errors.Interrupted) {
+          // Normal closure
+          debugLog("SSE interrupted", { eventCount, pairId, target });
+        } else {
+          console.error("SSE error:", error);
+          const errorMsg = `event: error\ndata: ${JSON.stringify({ detail: "Stream error" })}\n\n`;
+          controller.enqueue(encoder.encode(errorMsg));
+        }
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(body, { headers });
+}
+
 Deno.serve(async (request: Request): Promise<Response> => {
   try {
     if (request.method === "OPTIONS") {
@@ -283,6 +351,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       if (request.method === "GET") {
         return json(await getMessages(pairId, target, url.searchParams));
+      }
+    }
+
+    // GET /v1/pairs/{pairId}/subscribe/{target} - SSE endpoint
+    if (
+      parts.length === 5 &&
+      parts[0] === "v1" &&
+      parts[1] === "pairs" &&
+      parts[3] === "subscribe"
+    ) {
+      const pairId = parts[2];
+      const target = requireTarget(parts[4]);
+
+      if (request.method === "GET") {
+        return await subscribeSSE(pairId, target, url.searchParams);
       }
     }
 

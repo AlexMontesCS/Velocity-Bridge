@@ -1,9 +1,9 @@
 """
 Outbound HTTPS relay client for Velocity Bridge.
 
-The desktop never accepts inbound relay traffic. It polls a public relay for
-phone-to-desktop messages and command requests, then posts responses back over
-normal HTTPS.
+The desktop never accepts inbound relay traffic. It subscribes to a public relay via SSE
+(Server-Sent Events) for phone-to-desktop messages, with fallback to polling if SSE fails.
+It posts responses back over normal HTTPS.
 """
 from __future__ import annotations
 
@@ -110,14 +110,106 @@ class RelayTransport:
                 continue
 
             try:
-                self._poll_once(cfg)
+                # Try SSE first, fall back to polling if it fails
+                sse_connected = self._try_sse(cfg)
+                if not sse_connected:
+                    # SSE failed or closed, use polling instead
+                    self._poll_once(cfg)
                 self._last_error = None
                 self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
             except Exception as exc:  # pragma: no cover - depends on network
                 self._last_error = str(exc)
-                self.logger.warning(f"Relay poll failed: {exc}")
+                self.logger.warning(f"Relay failed: {exc}")
 
             self._stop.wait(min(max(poll_seconds, 1), 30))
+
+    def _try_sse(self, cfg: dict[str, Any]) -> bool:
+        """
+        Try to connect via SSE (Server-Sent Events).
+        Returns True if SSE was used, False if it failed and we should fall back to polling.
+        """
+        try:
+            pair_id = urllib.parse.quote(cfg['relay_pair_id'], safe='')
+            query = urllib.parse.urlencode(
+                {
+                    "token": cfg["relay_token"],
+                    "timeout": 30,
+                    "max_events": 10,
+                }
+            )
+            url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/subscribe/desktop?{query}"
+            
+            # Use curl for SSE streaming
+            if shutil.which("curl"):
+                return self._stream_sse_with_curl(url, cfg)
+            else:
+                # urllib doesn't handle SSE well, fall back to polling
+                return False
+        except Exception as exc:
+            self.logger.debug(f"SSE connection failed, falling back to polling: {exc}")
+            return False
+
+    def _stream_sse_with_curl(self, url: str, cfg: dict[str, Any]) -> bool:
+        """
+        Stream SSE events using curl. Returns True if we got messages, False otherwise.
+        """
+        try:
+            command = [
+                "curl",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                "35",
+                "--header",
+                "Accept: text/event-stream",
+                "--header",
+                f"User-Agent: {USER_AGENT}",
+                url,
+            ]
+            
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                timeout=40,
+                text=True,
+            )
+            
+            if result.returncode != 0:
+                self.logger.debug(f"SSE curl failed: {result.stderr}")
+                return False
+            
+            # Parse SSE stream
+            events_received = False
+            for line in result.stdout.splitlines():
+                if line.startswith("data: "):
+                    events_received = True
+                    try:
+                        message = json.loads(line[6:])  # Remove "data: " prefix
+                        self._handle_sse_message(cfg, message)
+                    except json.JSONDecodeError as e:
+                        self.logger.warning(f"Failed to parse SSE event: {e}")
+                        continue
+            
+            return events_received
+        except subprocess.TimeoutExpired:
+            self.logger.debug("SSE connection timed out (expected)")
+            return True  # Timeout is normal for long polling
+        except Exception as exc:
+            self.logger.debug(f"SSE streaming error: {exc}")
+            return False
+
+    def _handle_sse_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
+        """Handle a message received via SSE."""
+        payload = message.get("payload", {})
+        kind = payload.get("kind") or message.get("kind")
+
+        if kind == "command":
+            self._handle_command(cfg, payload)
+        elif kind in ("clipboard", "response"):
+            self._handle_clipboard_payload(payload)
+
+        self._desktop_cursor = max(self._desktop_cursor, int(message.get("id", 0)))
+
 
     def _poll_once(self, cfg: dict[str, Any]) -> None:
         messages = self._get_messages(cfg, "desktop", self._desktop_cursor)
