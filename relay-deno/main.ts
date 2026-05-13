@@ -352,16 +352,47 @@ async function subscribeSSE(
         }
 
         // kv.watch expects an array of keys; it does not watch prefix subtrees.
-        const watchIterator = kv.watch([notifyKey]);
-        for await (const _entries of watchIterator) {
-          if (Date.now() - startTime > timeoutMs) {
-            debugLog("SSE closing (timeout)", { eventCount, pairId, target });
-            break;
+        // Do not use bare `for await` on watch: it blocks until the next KV change, so the
+        // client `timeout` is never honored during idle (curl then hits its own --max-time).
+        const watchStream = kv.watch([notifyKey]);
+        const iter = watchStream[Symbol.asyncIterator]();
+
+        try {
+          while (eventCount < maxEvents) {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= timeoutMs) {
+              debugLog("SSE closing (timeout)", { eventCount, pairId, target });
+              break;
+            }
+            const budget = timeoutMs - elapsed;
+            if (budget <= 0) break;
+
+            const nextKv = iter.next().then((r) => ({ tag: "kv" as const, r }));
+            let tid: ReturnType<typeof setTimeout> | undefined;
+            const onBudget = new Promise<{ tag: "to" }>((resolve) => {
+              tid = setTimeout(() => resolve({ tag: "to" }), budget);
+            });
+            const winner = await Promise.race([nextKv, onBudget]);
+            if (tid !== undefined) clearTimeout(tid);
+            if (winner.tag === "to") {
+              debugLog("SSE closing (idle timeout)", { eventCount, pairId, target });
+              break;
+            }
+            if (winner.r.done) break;
+
+            await drainBatch();
+            if (eventCount >= maxEvents) {
+              debugLog("SSE closing (max_events)", { eventCount, pairId, target });
+              break;
+            }
           }
-          await drainBatch();
-          if (eventCount >= maxEvents) {
-            debugLog("SSE closing (max_events)", { eventCount, pairId, target });
-            break;
+        } finally {
+          if (typeof iter.return === "function") {
+            try {
+              await iter.return();
+            } catch {
+              /* ignore */
+            }
           }
         }
         try {
