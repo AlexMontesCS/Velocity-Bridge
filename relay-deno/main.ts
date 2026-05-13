@@ -73,6 +73,41 @@ function messagePrefix(pairId: string, target: Target): string[] {
   return ["pair", pairId, "msg", target];
 }
 
+/** Exact key bumped on every new message so `kv.watch` can wake (watch does not support prefix subtrees). */
+function streamNotifyKey(pairId: string, target: Target): Deno.KvKey {
+  return ["pair", pairId, "sse", target];
+}
+
+async function collectMessagesForPair(
+  pairId: string,
+  target: Target,
+  after: number,
+  limit: number,
+  correlationId: string | null,
+): Promise<StoredMessage[]> {
+  const prefix = messagePrefix(pairId, target);
+  const messages: StoredMessage[] = [];
+  const entries = kv.list({ prefix });
+
+  for await (const entry of entries) {
+    const message = entry.value as StoredMessage;
+    if (!message || typeof message.id !== "number") {
+      continue;
+    }
+    if (message.id <= after) {
+      continue;
+    }
+    if (correlationId && message.correlation_id !== correlationId) {
+      continue;
+    }
+    messages.push(message);
+    if (messages.length >= limit) break;
+  }
+
+  messages.sort((a, b) => a.id - b.id);
+  return messages;
+}
+
 function safeNumber(value: string | null | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number(value);
@@ -194,7 +229,15 @@ async function postMessage(
   };
 
   const key = messageKey(pairId, target, id);
-  await kv.set(key, message, { expireIn: MESSAGE_TTL_SECONDS * 1000 });
+  const notifyKey = streamNotifyKey(pairId, target);
+  const ttlMs = MESSAGE_TTL_SECONDS * 1000;
+  const commit = await kv.atomic()
+    .set(key, message, { expireIn: ttlMs })
+    .set(notifyKey, id, { expireIn: ttlMs })
+    .commit();
+  if (!commit.ok) {
+    throw new HttpError(503, "Relay could not store message");
+  }
 
   return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
 }
@@ -210,25 +253,8 @@ async function getMessages(
   const after = safeNumber(params.get("after"), 0);
   const limit = Math.min(Math.max(safeNumber(params.get("limit"), 25), 1), MAX_LIMIT);
   const correlationId = params.get("correlation_id");
-  const prefix = messagePrefix(pairId, target);
 
-  const messages: StoredMessage[] = [];
-  const entries = kv.list({ prefix });
-
-  for await (const entry of entries) {
-    const message = entry.value as StoredMessage;
-    if (!message || message.id <= after) {
-      continue;
-    }
-    if (correlationId && message.correlation_id !== correlationId) {
-      continue;
-    }
-    messages.push(message);
-    if (messages.length >= limit) break;
-  }
-
-  messages.sort((a, b) => a.id - b.id);
-  const page = messages.slice(0, limit);
+  const page = await collectMessagesForPair(pairId, target, after, limit, correlationId);
 
   return {
     status: "success",
@@ -245,7 +271,7 @@ async function subscribeSSE(
   const token = params.get("token") || "";
   await requirePair(pairId, token);
 
-  const prefix = messagePrefix(pairId, target);
+  const notifyKey = streamNotifyKey(pairId, target);
   const timeoutSeconds = safeNumber(params.get("timeout"), 30);
   const maxEvents = safeNumber(params.get("max_events"), 50);
 
@@ -267,40 +293,81 @@ async function subscribeSSE(
         // Stream the initial ":ready" comment to confirm connection
         controller.enqueue(encoder.encode(": ready\n\n"));
 
-        const watchIterator = kv.watch(prefix);
-        for await (const entries of watchIterator) {
-          for (const entry of entries) {
-            const message = entry.value as StoredMessage;
-            if (!message) continue;
+        let lastEmitted = safeNumber(params.get("after"), 0);
+        const correlationId = params.get("correlation_id");
 
-            eventCount++;
-            debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
-
-            // Send as SSE event (client may disconnect mid-stream)
+        const emitMessage = (message: StoredMessage): boolean => {
+          eventCount++;
+          debugLog(`SSE event #${eventCount}`, { pairId, target, id: message.id });
+          try {
+            const event = `data: ${JSON.stringify(message)}\n\n`;
+            controller.enqueue(encoder.encode(event));
+          } catch (enqueueErr) {
+            debugLog("SSE enqueue failed (client likely disconnected)", enqueueErr);
             try {
-              const event = `data: ${JSON.stringify(message)}\n\n`;
-              controller.enqueue(encoder.encode(event));
-            } catch (enqueueErr) {
-              debugLog("SSE enqueue failed (client likely disconnected)", enqueueErr);
-              try {
-                controller.close();
-              } catch {
-                /* already closed */
-              }
-              return;
+              controller.close();
+            } catch {
+              /* already closed */
             }
-
-            // Close after max events or timeout
-            if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
-              debugLog("SSE closing", { eventCount, pairId, target });
-              try {
-                controller.close();
-              } catch {
-                /* already closed */
-              }
-              return;
-            }
+            return false;
           }
+          if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
+            debugLog("SSE closing", { eventCount, pairId, target });
+            try {
+              controller.close();
+            } catch {
+              /* already closed */
+            }
+            return false;
+          }
+          return true;
+        };
+
+        const drainBatch = async (): Promise<void> => {
+          const remaining = maxEvents - eventCount;
+          if (remaining <= 0) return;
+          const batch = await collectMessagesForPair(
+            pairId,
+            target,
+            lastEmitted,
+            Math.min(remaining, MAX_LIMIT),
+            correlationId,
+          );
+          if (batch.length === 0) return;
+          for (const message of batch) {
+            if (!emitMessage(message)) return;
+            lastEmitted = Math.max(lastEmitted, message.id);
+          }
+        };
+
+        // Backlog already in KV (e.g. client reconnects with ?after=)
+        await drainBatch();
+        if (eventCount >= maxEvents || Date.now() - startTime > timeoutMs) {
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
+          return;
+        }
+
+        // kv.watch expects an array of keys; it does not watch prefix subtrees.
+        const watchIterator = kv.watch([notifyKey]);
+        for await (const _entries of watchIterator) {
+          if (Date.now() - startTime > timeoutMs) {
+            debugLog("SSE closing (timeout)", { eventCount, pairId, target });
+            break;
+          }
+          await drainBatch();
+          if (eventCount >= maxEvents) {
+            debugLog("SSE closing (max_events)", { eventCount, pairId, target });
+            break;
+          }
+        }
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
         }
       } catch (error) {
         if (error instanceof Deno.errors.Interrupted) {
