@@ -103,30 +103,26 @@ class RelayTransport:
     def _run(self) -> None:
         while not self._stop.is_set():
             cfg = self.load_config()
-            poll_seconds = float(cfg.get("relay_poll_seconds", 3) or 3)
 
             if not cfg.get("relay_enabled", False) or not self._is_configured(cfg):
-                self._stop.wait(min(max(poll_seconds, 1), 10))
+                self._stop.wait(2)
                 continue
 
             try:
-                # Try SSE first, fall back to polling if it fails
-                sse_connected = self._try_sse(cfg)
-                if not sse_connected:
-                    # SSE failed or closed, use polling instead
-                    self._poll_once(cfg)
+                # Use SSE for real-time delivery
+                self._try_sse(cfg)
                 self._last_error = None
                 self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
             except Exception as exc:  # pragma: no cover - depends on network
                 self._last_error = str(exc)
-                self.logger.warning(f"Relay failed: {exc}")
+                self.logger.warning(f"Relay SSE failed: {exc}")
 
-            self._stop.wait(min(max(poll_seconds, 1), 30))
+            # SSE timed out/closed, reconnect immediately
+            self._stop.wait(0.1)
 
-    def _try_sse(self, cfg: dict[str, Any]) -> bool:
+    def _try_sse(self, cfg: dict[str, Any]) -> None:
         """
-        Try to connect via SSE (Server-Sent Events).
-        Returns True if SSE was used, False if it failed and we should fall back to polling.
+        Connect via SSE (Server-Sent Events) and stream messages until timeout or close.
         """
         try:
             pair_id = urllib.parse.quote(cfg['relay_pair_id'], safe='')
@@ -141,17 +137,16 @@ class RelayTransport:
             
             # Use curl for SSE streaming
             if shutil.which("curl"):
-                return self._stream_sse_with_curl(url, cfg)
+                self._stream_sse_with_curl(url, cfg)
             else:
-                # urllib doesn't handle SSE well, fall back to polling
-                return False
+                self.logger.warning("curl not available, cannot use SSE")
         except Exception as exc:
-            self.logger.debug(f"SSE connection failed, falling back to polling: {exc}")
-            return False
+            self.logger.debug(f"SSE connection error: {exc}")
+            raise
 
-    def _stream_sse_with_curl(self, url: str, cfg: dict[str, Any]) -> bool:
+    def _stream_sse_with_curl(self, url: str, cfg: dict[str, Any]) -> None:
         """
-        Stream SSE events using curl. Returns True if we got messages, False otherwise.
+        Stream SSE events using curl. Blocks until timeout or close.
         """
         try:
             command = [
@@ -175,28 +170,24 @@ class RelayTransport:
             )
             
             if result.returncode != 0:
-                self.logger.debug(f"SSE curl failed: {result.stderr}")
-                return False
+                self.logger.debug(f"SSE curl error: {result.stderr}")
+                raise RuntimeError(result.stderr or "SSE connection failed")
             
             # Parse SSE stream
-            events_received = False
             for line in result.stdout.splitlines():
                 if line.startswith("data: "):
-                    events_received = True
                     try:
                         message = json.loads(line[6:])  # Remove "data: " prefix
                         self._handle_sse_message(cfg, message)
+                        self.logger.debug(f"SSE received message: {message.get('id')}")
                     except json.JSONDecodeError as e:
                         self.logger.warning(f"Failed to parse SSE event: {e}")
                         continue
-            
-            return events_received
         except subprocess.TimeoutExpired:
-            self.logger.debug("SSE connection timed out (expected)")
-            return True  # Timeout is normal for long polling
+            self.logger.debug("SSE connection timed out (expected after 30s)")
         except Exception as exc:
             self.logger.debug(f"SSE streaming error: {exc}")
-            return False
+            raise
 
     def _handle_sse_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
         """Handle a message received via SSE."""
