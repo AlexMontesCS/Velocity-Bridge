@@ -16,6 +16,8 @@ import urllib.request
 from typing import Any, Callable
 
 
+USER_AGENT = "VelocityBridge/3.0.4 (+https://github.com/AlexMontesCS/Velocity-Bridge)"
+
 ClipboardReader = Callable[[], tuple[str, str]]
 ClipboardWriter = Callable[[str, str, str], dict[str, Any]]
 ImageWriter = Callable[[str, str, str], dict[str, Any]]
@@ -192,7 +194,10 @@ class RelayTransport:
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         body = None
-        headers = {"Accept": "application/json"}
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+        }
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -220,4 +225,3 @@ class RelayTransport:
             raise RuntimeError("Relay mode is disabled")
         if not self._is_configured(cfg):
             raise RuntimeError("Relay URL, pair id, and token are required")
-

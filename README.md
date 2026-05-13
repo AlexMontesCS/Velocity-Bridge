@@ -109,6 +109,11 @@ stored as plaintext until they expire. Use infrastructure you trust, and put the
 relay behind TLS. The older `relay/` folder contains a regular FastAPI relay for
 VPS/Fly/Render-style hosting if you prefer Python.
 
+If Cloudflare returns `1010 browser_signature_banned`, disable Browser Integrity
+Check for the relay hostname or add a WAF skip rule for Browser Integrity Check.
+The relay is an API endpoint, so browser-only checks can block the desktop
+client before the Worker receives the request.
+
 ## Technical Architecture
 
 ```

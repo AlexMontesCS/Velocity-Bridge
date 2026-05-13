@@ -33,3 +33,17 @@ high-throughput message bus. Messages expire after 24 hours by default.
 Clipboard payloads are plaintext inside your Cloudflare KV namespace until they
 expire. Use a relay account you control.
 
+## Troubleshooting 1010 Access Denied
+
+If the desktop app reports `Cloudflare 1010` or `browser_signature_banned`, the
+request is being blocked by Cloudflare before it reaches the Worker. For an API
+relay, disable **Browser Integrity Check** for this Worker route:
+
+1. Open the Cloudflare dashboard.
+2. Select the zone/account used by the relay.
+3. Go to **Security -> Settings** and turn off **Browser Integrity Check**, or
+   create a WAF custom rule that skips Browser Integrity Check for the relay
+   hostname.
+
+The desktop client sends a `VelocityBridge/...` user agent, but Cloudflare's
+Browser Integrity Check can still reject non-browser API clients when enabled.
