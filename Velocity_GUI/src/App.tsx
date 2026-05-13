@@ -13,7 +13,9 @@ import {
   Smartphone,
   Download,
   RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  Cloud,
+  Send
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import velocityLogo from "./assets/logo.png";
@@ -23,6 +25,7 @@ import "./App.css";
 // iOS Shortcut URLs - update here if shortcuts are recreated
 const SHORTCUT_IOS_TO_LINUX_URL = "https://www.icloud.com/shortcuts/4c4f2c081bb448fa9ff714a96a44103e";
 const SHORTCUT_BIDIRECTIONAL_URL = "https://www.icloud.com/shortcuts/610688b5208c46499ce271bbfb07570a";
+const RELAY_DEPLOY_URL = "https://deploy.workers.cloudflare.com/?url=https://github.com/AlexMontesCS/Velocity-Bridge/tree/main/relay-cloudflare";
 
 interface HistoryItem {
   timestamp: string;
@@ -41,6 +44,20 @@ interface ServerStatus {
   clients: number;
   requests: number;
   install_method?: "appimage" | "native";
+  relay?: RelayStatus;
+}
+
+interface RelayStatus {
+  enabled: boolean;
+  configured: boolean;
+  running: boolean;
+  url?: string;
+  pair_id?: string;
+  last_error?: string | null;
+  last_event?: string | null;
+  last_poll?: string | null;
+  messages_received?: number;
+  messages_sent?: number;
 }
 
 const RESTART_DELAY_MS = 1500;
@@ -65,6 +82,13 @@ function App() {
   const [startMinimized, setStartMinimized] = useState(false);
   const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
   const [isTogglingStartMinimized, setIsTogglingStartMinimized] = useState(false);
+  const [relayEnabled, setRelayEnabled] = useState(false);
+  const [relayUrl, setRelayUrl] = useState("");
+  const [relayPairId, setRelayPairId] = useState("");
+  const [relayToken, setRelayToken] = useState("");
+  const [relayPollSeconds, setRelayPollSeconds] = useState(3);
+  const [isSavingRelay, setIsSavingRelay] = useState(false);
+  const [isPushingRelay, setIsPushingRelay] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return !localStorage.getItem("velocityOnboardingCompleted");
   });
@@ -461,6 +485,11 @@ function App() {
           if (data) {
             setNotificationsEnabled(data.notifications_enabled ?? true);
             setStartMinimized(data.start_minimized ?? false);
+            setRelayEnabled(data.relay_enabled ?? false);
+            setRelayUrl(data.relay_url ?? "");
+            setRelayPairId(data.relay_pair_id ?? "");
+            setRelayToken(data.relay_token ?? "");
+            setRelayPollSeconds(data.relay_poll_seconds ?? 3);
           }
         })
         .catch(() => { });
@@ -542,6 +571,65 @@ function App() {
       showStatus("Failed to update start minimized setting");
     } finally {
       setIsTogglingStartMinimized(false);
+    }
+  };
+
+  const saveRelaySettings = async (enabled = relayEnabled) => {
+    if (isSavingRelay) return;
+    setIsSavingRelay(true);
+    try {
+      const res = await fetch("http://localhost:8080/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          relay_enabled: enabled,
+          relay_url: relayUrl,
+          relay_pair_id: relayPairId,
+          relay_token: relayToken,
+          relay_poll_seconds: relayPollSeconds,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRelayEnabled(data.relay_enabled ?? enabled);
+        setRelayUrl(data.relay_url ?? relayUrl);
+        setRelayPairId(data.relay_pair_id ?? relayPairId);
+        setRelayToken(data.relay_token ?? relayToken);
+        setRelayPollSeconds(data.relay_poll_seconds ?? relayPollSeconds);
+        showStatus("Relay settings saved");
+      } else {
+        showStatus("Relay settings failed");
+      }
+    } catch {
+      showStatus("Relay settings failed");
+    } finally {
+      setIsSavingRelay(false);
+    }
+  };
+
+  const toggleRelay = async () => {
+    const next = !relayEnabled;
+    setRelayEnabled(next);
+    await saveRelaySettings(next);
+  };
+
+  const pushClipboardViaRelay = async () => {
+    if (!serverStatus?.token || isPushingRelay) return;
+    setIsPushingRelay(true);
+    try {
+      const res = await fetch(`http://localhost:8080/relay/push_clipboard?token=${serverStatus.token}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        showStatus("Clipboard sent to relay");
+      } else {
+        const data = await res.json().catch(() => null);
+        showStatus(data?.detail || "Relay send failed");
+      }
+    } catch {
+      showStatus("Relay send failed");
+    } finally {
+      setIsPushingRelay(false);
     }
   };
 
@@ -703,7 +791,7 @@ function App() {
                   {/* AppImage Fallback (GitHub) */}
                   {updateInfo.installType === "appimage" && !updateInfo.updaterHandle && (
                     <button
-                      onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                      onClick={() => openUrl(`https://github.com/AlexMontesCS/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
                       style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                     >
                       Download New AppImage
@@ -741,7 +829,7 @@ function App() {
                         Update via your System Software Center or Terminal
                       </span>
                       <button
-                        onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                        onClick={() => openUrl(`https://github.com/AlexMontesCS/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
                         style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px' }}
                       >
                         View Release
@@ -752,7 +840,7 @@ function App() {
                   {/* Manual Fallback */}
                   {(updateInfo.installType === "manual" || !updateInfo.installType) && (
                     <button
-                      onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
+                      onClick={() => openUrl("https://github.com/AlexMontesCS/Velocity-Bridge/releases/latest")}
                       style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                     >
                       Download Update
@@ -1023,6 +1111,121 @@ function App() {
                         onChange={toggleNotifications}
                         disabled={isTogglingNotifications}
                       />
+                    </div>
+                  </div>
+
+                  <div className="settings-section">
+                    <h2>Relay</h2>
+                    <div className="setting-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Cloud size={18} style={{ color: relayEnabled ? '#007AFF' : '#999' }} />
+                        <div>
+                          <label>Relay Mode</label>
+                          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>Use outbound HTTPS when phone and laptop are on different networks</p>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={relayEnabled}
+                        onChange={toggleRelay}
+                        disabled={isSavingRelay}
+                      />
+                    </div>
+
+                    <div className="connection-field">
+                      <label>Relay URL</label>
+                      <div className="field-row">
+                        <input
+                          type="text"
+                          value={relayUrl}
+                          onChange={(e) => setRelayUrl(e.target.value)}
+                          placeholder="https://your-relay.example.com"
+                          className="dark-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="connection-field">
+                      <label>Pair ID</label>
+                      <div className="field-row">
+                        <input
+                          type="text"
+                          value={relayPairId}
+                          onChange={(e) => setRelayPairId(e.target.value)}
+                          className="dark-input"
+                        />
+                        <button className="field-btn" onClick={() => navigator.clipboard.writeText(relayPairId)}>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="connection-field">
+                      <label>Relay Token</label>
+                      <div className="field-row">
+                        <input
+                          type={showToken ? "text" : "password"}
+                          value={relayToken}
+                          onChange={(e) => setRelayToken(e.target.value)}
+                          className="dark-input"
+                        />
+                        <button className="field-btn" onClick={() => setShowToken(!showToken)}>
+                          {showToken ? "Hide" : "Show"}
+                        </button>
+                        <button className="field-btn" onClick={() => navigator.clipboard.writeText(relayToken)}>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="setting-item" style={{ alignItems: 'center' }}>
+                      <div>
+                        <label>Poll Interval</label>
+                        <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>Seconds between relay checks</p>
+                      </div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={relayPollSeconds}
+                        onChange={(e) => setRelayPollSeconds(Number(e.target.value))}
+                        style={{ width: '76px' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+                      <button
+                        className="primary-btn"
+                        onClick={() => saveRelaySettings()}
+                        disabled={isSavingRelay}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007AFF', color: 'white', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <CheckCircle2 size={16} />
+                        {isSavingRelay ? "Saving..." : "Save Relay"}
+                      </button>
+                      <button
+                        className="primary-btn"
+                        onClick={pushClipboardViaRelay}
+                        disabled={!relayEnabled || isPushingRelay}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: relayEnabled ? '#22c55e' : '#999', color: 'white', cursor: relayEnabled ? 'pointer' : 'not-allowed', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <Send size={16} />
+                        {isPushingRelay ? "Sending..." : "Push Clipboard"}
+                      </button>
+                      <button
+                        className="primary-btn"
+                        onClick={() => openUrl(RELAY_DEPLOY_URL)}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #d0d0d0', background: 'white', color: '#333', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <Cloud size={16} />
+                        Deploy Relay
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: '14px', fontSize: '12px', color: serverStatus?.relay?.last_error ? '#cc3333' : '#666' }}>
+                      {serverStatus?.relay?.last_error
+                        ? serverStatus.relay.last_error
+                        : serverStatus?.relay?.last_event || (relayEnabled ? "Relay waiting for messages" : "Relay disabled")}
                     </div>
                   </div>
 

@@ -33,15 +33,15 @@
     </ul>
   </description>
   
-  <url type="homepage">https://github.com/Trex099/Velocity-Bridge</url>
-  <url type="bugtracker">https://github.com/Trex099/Velocity-Bridge/issues</url>
+  <url type="homepage">https://github.com/AlexMontesCS/Velocity-Bridge</url>
+  <url type="bugtracker">https://github.com/AlexMontesCS/Velocity-Bridge/issues</url>
   
   <launchable type="desktop-id">io.github.trex099.VelocityBridge.desktop</launchable>
   
   <screenshots>
     <screenshot type="default">
       <caption>Dashboard showing server status and connection info</caption>
-      <image>https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/assets/screenshot-dashboard.png</image>
+      <image>https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/assets/screenshot-dashboard.png</image>
     </screenshot>
   </screenshots>
   

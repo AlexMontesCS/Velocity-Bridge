@@ -51,7 +51,7 @@ modules:
     sources:
       # AppImage from GitHub Release
       - type: file
-        url: https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage
+        url: https://github.com/AlexMontesCS/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage
         sha256: c06b9703219e7db7025bae5ee3feaf03f79d788d432fdf86d9c1a50b5d9f5579
         dest-filename: Velocity-Bridge_3.0.4_amd64.AppImage
       
@@ -61,7 +61,7 @@ modules:
       
       # Icon
       - type: file
-        url: https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/assets/velocity-icon.png
+        url: https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/assets/velocity-icon.png
         sha256: 2d8d8b52919fb5970a1a208d363c5d83310ec521a7adad897984a4741f70e37c
         dest-filename: velocity-icon.png
       

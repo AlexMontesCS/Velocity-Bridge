@@ -40,6 +40,7 @@ pyinstaller --onefile --name velocity-backend \
   --hidden-import=uvicorn.protocols.http \
   --hidden-import=uvicorn.protocols.http.auto \
   --hidden-import=uvicorn.lifespan.on \
+  --hidden-import=relay_client \
   server.py
 
 # 3. No longer creating binaries directory, using src-tauri root

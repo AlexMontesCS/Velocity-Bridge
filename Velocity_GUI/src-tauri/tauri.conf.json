@@ -60,7 +60,7 @@
     "updater": {
       "pubkey": "RWQRWkJmclhOS3hQL3Z6NlIxY2pPbUVaUmc4YkFnS1RYS2pOVWJKU3RZeXp1WUhyei93cUpKODk=",
       "endpoints": [
-        "https://github.com/Trex099/Velocity-Bridge/releases/latest/download/latest.json"
+        "https://github.com/AlexMontesCS/Velocity-Bridge/releases/latest/download/latest.json"
       ]
     },
     "autostart": null

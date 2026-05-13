@@ -14,7 +14,7 @@ The project utilizes a dual-stack architecture consisting of a Tauri/Rust fronte
 ### Local Development Environment
 1. **Repository Initialization**:
    ```bash
-   git clone https://github.com/Trex099/Velocity-Bridge.git
+   git clone https://github.com/AlexMontesCS/Velocity-Bridge.git
    cd Velocity-Bridge/Velocity_GUI
    ```
 

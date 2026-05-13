@@ -29,3 +29,4 @@ def test_status_endpoint_returns_connection_info(client):
     assert data["ip"]
     assert "hostname" in data
     assert data["port"] == 8080
+    assert "relay" in data

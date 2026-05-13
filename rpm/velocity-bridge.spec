@@ -4,9 +4,9 @@ Release:        1%{?dist}
 Summary:        iOS to Linux Clipboard Sync
 
 License:        GPL-3.0
-URL:            https://github.com/Trex099/Velocity-Bridge
-Source0: https://github.com/Trex099/Velocity-Bridge/releases/download/v%{version}/Velocity-Bridge_%{version}_amd64.AppImage
-Source1:        https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/assets/velocity-icon.png
+URL:            https://github.com/AlexMontesCS/Velocity-Bridge
+Source0: https://github.com/AlexMontesCS/Velocity-Bridge/releases/download/v%{version}/Velocity-Bridge_%{version}_amd64.AppImage
+Source1:        https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/assets/velocity-icon.png
 
 ExclusiveArch:  x86_64
 Requires:       webkit2gtk4.1

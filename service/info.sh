@@ -2,7 +2,7 @@
 #
 # Velocity Bridge - Show current configuration
 # Author: trex099-Arshgour
-# https://github.com/Trex099/Velocity-Bridge
+# https://github.com/AlexMontesCS/Velocity-Bridge
 #
 
 # Colors
@@ -17,7 +17,7 @@ SERVICE_FILE="$HOME/.config/systemd/user/velocity.service"
 # Check if velocity is installed
 if [ ! -f "$SERVICE_FILE" ]; then
     echo -e "${RED}Velocity Bridge is not installed.${NC}"
-    echo -e "Run the installer: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash"
+    echo -e "Run the installer: curl -fsSL https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/install.sh | bash"
     exit 1
 fi
 
@@ -85,7 +85,7 @@ echo ""
 # Check for updates
 CURRENT_VERSION="1.0.0"
 echo -ne "🔄 ${BLUE}Checking for updates...${NC}"
-LATEST=$(curl -s --connect-timeout 5 https://api.github.com/repos/Trex099/Velocity-Bridge/releases/latest 2>/dev/null | grep '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/')
+LATEST=$(curl -s --connect-timeout 5 https://api.github.com/repos/AlexMontesCS/Velocity-Bridge/releases/latest 2>/dev/null | grep '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/')
 if [ -n "$LATEST" ] && [ "$LATEST" != "$CURRENT_VERSION" ]; then
     echo -e " ${GREEN}Update available: v$LATEST${NC}"
     echo -e "   Run: ${YELLOW}cd ~/velocity && git pull${NC}"

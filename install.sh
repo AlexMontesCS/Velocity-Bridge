@@ -1,16 +1,16 @@
 #!/bin/bash
 #
 # Velocity Bridge Installer
-# https://github.com/Trex099/Velocity-Bridge
+# https://github.com/AlexMontesCS/Velocity-Bridge
 #
-# curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/install.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/install.sh | bash
 #
 
 set -euo pipefail
 
 VERSION="2.0.0"
 FALLBACK_VER="3.0.4"
-REPO="Trex099/Velocity-Bridge"
+REPO="AlexMontesCS/Velocity-Bridge"
 
 BIN_DIR="$HOME/.local/bin"
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"

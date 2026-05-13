@@ -2,7 +2,7 @@
 #
 # Velocity Bridge - One-click Setup Script
 # Author: trex099-Arshgour
-# https://github.com/Trex099/Velocity-Bridge
+# https://github.com/AlexMontesCS/Velocity-Bridge
 #
 
 set -e

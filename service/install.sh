@@ -2,7 +2,7 @@
 #
 # Velocity Bridge - Remote Installer
 # Author: trex099-Arshgour
-# Usage: curl -fsSL https://raw.githubusercontent.com/Trex099/Velocity-Bridge/main/service/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/AlexMontesCS/Velocity-Bridge/main/service/install.sh | bash
 #
 
 set -e
@@ -23,7 +23,7 @@ echo -e "${NC}"
 
 # Default install directory
 INSTALL_DIR="${HOME}/velocity"
-REPO_URL="https://github.com/Trex099/Velocity-Bridge.git"
+REPO_URL="https://github.com/AlexMontesCS/Velocity-Bridge.git"
 
 # Check for git
 if ! command -v git &> /dev/null; then

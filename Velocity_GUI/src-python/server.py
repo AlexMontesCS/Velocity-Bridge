@@ -2,13 +2,16 @@
 Velocity Bridge - LAN Continuity Daemon for iOS → Linux
 
 Author: trex099-Arshgour
-GitHub: https://github.com/Trex099/Velocity-Bridge
+GitHub: https://github.com/AlexMontesCS/Velocity-Bridge
 License: GPL-3.0
 """
 import base64
+import io
+import json
 import logging
 import os
 import re
+import secrets
 import socket
 import subprocess
 import tempfile
@@ -27,6 +30,13 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from version import __version__ as VERSION
+
+try:
+    from relay_client import RelayTransport
+    RELAY_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - only expected in broken bundles
+    RelayTransport = None
+    RELAY_IMPORT_ERROR = str(exc)
 
 # Setup logging
 LOG_DIR = Path.home() / ".local" / "share" / "velocity-bridge"
@@ -87,10 +97,9 @@ SESSION_STATS = {
 
 def load_config() -> dict:
     """Load settings from config file. Generate token if missing."""
-    import json
-    import secrets
     config_file = CONFIG_DIR / "settings.json"
     config = {}
+    changed = False
     
     try:
         if config_file.exists():
@@ -101,18 +110,36 @@ def load_config() -> dict:
     # Generate token if it doesn't exist
     if not config.get("token") and not config.get("security_token"):
         config["token"] = secrets.token_hex(12)
+        changed = True
+
+    # Generate relay identity lazily. Relay mode is still off until enabled.
+    if not config.get("relay_pair_id"):
+        config["relay_pair_id"] = secrets.token_urlsafe(9)
+        changed = True
+    if not config.get("relay_token"):
+        config["relay_token"] = secrets.token_hex(16)
+        changed = True
+
+    if changed:
         try:
-            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            config_file.write_text(json.dumps(config, indent=2))
+            save_config(config)
         except Exception as e:
             logger.debug(f"Could not save config: {e}")
     
     return config
 
+
+def save_config(config: dict) -> None:
+    """Persist settings to disk."""
+    config_file = CONFIG_DIR / "settings.json"
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(json.dumps(config, indent=2))
+
 # Security token from environment or config (AUTH FIX)
 # Support both 'token' (from curl/dnf/aur installs) and 'security_token' (legacy)
 config = load_config()
 SECURITY_TOKEN = os.environ.get("SECURITY_TOKEN") or config.get("token", "") or config.get("security_token", "")
+relay_transport = None
 
 def is_local_ip(ip: str) -> bool:
     """Check if an IP is from local network."""
@@ -489,6 +516,152 @@ def get_linux_clipboard() -> tuple[str, str]:
     return ("empty", "")
 
 
+def apply_clipboard_payload(payload_type: str, content: str, source_label: str = "iOS") -> dict:
+    """Apply incoming text/url clipboard content from any transport."""
+    content = (content or "").strip()
+    logger.info(f"Clipboard from {source_label}: {payload_type} ({len(content)} chars)")
+
+    history = load_history()
+    history.append({
+        "timestamp": datetime.now().isoformat(),
+        "type": payload_type,
+        "preview": content[:100] + "..." if len(content) > 100 else content,
+        "content": content,
+    })
+    save_history(history)
+
+    if payload_type == "url" or is_url(content):
+        copy_to_clipboard(content)
+        try:
+            webbrowser.open(content)
+            send_notification(
+                f"URL Received ({source_label})",
+                content[:50] + "..." if len(content) > 50 else content,
+                sound="complete",
+            )
+            return {"status": "success", "action": "opened_url", "clipboard": True}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to open URL: {e}")
+
+    if copy_to_clipboard(content):
+        send_notification(
+            f"Clipboard Updated ({source_label})",
+            content[:50] + "..." if len(content) > 50 else content,
+            sound="message-new-instant",
+        )
+        return {"status": "success", "action": "copied_to_clipboard"}
+
+    raise HTTPException(status_code=500, detail="Failed to copy to clipboard")
+
+
+def normalize_image_for_clipboard(image_data: bytes) -> bytes:
+    """Best-effort conversion to PNG bytes for clipboard compatibility."""
+    try:
+        from PIL import Image
+        import pillow_heif
+
+        if pillow_heif.is_supported(image_data):
+            heif_file = pillow_heif.read_heif(image_data)
+            image = Image.frombytes(
+                heif_file.mode,
+                heif_file.size,
+                heif_file.data,
+                "raw",
+            )
+        else:
+            image = Image.open(io.BytesIO(image_data))
+
+        with io.BytesIO() as output:
+            image.convert("RGBA").save(output, format="PNG")
+            return output.getvalue()
+    except Exception as e:
+        logger.debug(f"Could not normalize image for clipboard: {e}")
+        return image_data
+
+
+def copy_image_bytes_to_clipboard(image_data: bytes) -> bool:
+    """Copy PNG-compatible image bytes to the Linux clipboard."""
+    display_server = detect_display_server()
+
+    try:
+        if display_server == "wayland":
+            proc = subprocess.Popen(
+                ["wl-copy", "--type", "image/png"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            proc.stdin.write(image_data)
+            proc.stdin.close()
+            return True
+
+        if display_server == "x11":
+            subprocess.run(
+                ["xclip", "-selection", "clipboard", "-t", "image/png", "-i"],
+                input=image_data,
+                check=True,
+                capture_output=True,
+                timeout=5,
+            )
+            return True
+    except Exception as e:
+        logger.warning(f"Failed to copy image to clipboard: {e}")
+
+    return False
+
+
+def apply_image_payload(image_b64: str, filename: str, source_label: str = "iOS") -> dict:
+    """Apply incoming image clipboard content from any transport."""
+    try:
+        image_data = base64.b64decode(image_b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Base64 data: {e}")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = Path(filename or "clipboard_image.png").name
+    if not filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".heic", ".webp")):
+        filename += ".png"
+
+    target_path = UPLOAD_DIR / filename
+    if target_path.exists():
+        stem = target_path.stem
+        suffix = target_path.suffix
+        counter = 1
+        while target_path.exists():
+            target_path = UPLOAD_DIR / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    target_path.write_bytes(image_data)
+    clipboard_data = normalize_image_for_clipboard(image_data)
+    copied = copy_image_bytes_to_clipboard(clipboard_data)
+
+    size_kb = len(image_data) / 1024
+    size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+
+    history = load_history()
+    history.append({
+        "timestamp": datetime.now().isoformat(),
+        "type": "image",
+        "preview": f"Image from {source_label}: {target_path.name} ({size_str})",
+        "content": str(target_path),
+    })
+    save_history(history)
+
+    send_notification(
+        f"Image Received ({source_label})",
+        f"{target_path.name} - {'Copied' if copied else 'Saved'}",
+        sound="camera-shutter",
+    )
+
+    return {
+        "status": "success",
+        "filename": target_path.name,
+        "path": str(target_path),
+        "size": len(image_data),
+        "clipboard": copied,
+    }
+
+
 class ClipboardPayload(BaseModel):
     type: Literal["text", "url"]
     content: str
@@ -620,157 +793,8 @@ async def upload_image(request: Request, payload: ImagePayload):
     """
     validate_token(payload.token, request)
     logger.info(f"Image upload: {payload.filename}")
-    
-    # Ensure upload directory exists
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Decode Base64 image
-    try:
-        image_data = base64.b64decode(payload.image)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid Base64 data: {e}")
-    
-    # Determine filename and extension
-    filename = payload.filename or "clipboard_image.png"
-    if not filename.endswith(('.png', '.jpg', '.jpeg', '.gif', '.heic', '.webp')):
-        filename += ".png"
-    
-    # Handle duplicate filenames
-    target_path = UPLOAD_DIR / filename
-    if target_path.exists():
-        stem = target_path.stem
-        suffix = target_path.suffix
-        counter = 1
-        while target_path.exists():
-            target_path = UPLOAD_DIR / f"{stem}_{counter}{suffix}"
-            counter += 1
-    
-    # Save the file
-    target_path.write_bytes(image_data)
 
-    # Convert HEIC to PNG if needed (for saved file)
-    try:
-            # Improved HEIC detection and native conversion using pillow-heif
-            # This is bundled in the sidecar, so it works without system ImageMagick
-            try:
-                from PIL import Image
-                import pillow_heif
-                
-                # Check for HEIC signature
-                is_heic = pillow_heif.is_supported(image_data)
-                if is_heic:
-                    logger.info("Converting HEIC upload to PNG using native decoder...")
-                    png_path = str(target_path.with_suffix('.png'))
-                    
-                    heif_file = pillow_heif.read_heif(image_data)
-                    image = Image.frombytes(
-                        heif_file.mode,
-                        heif_file.size,
-                        heif_file.data,
-                        "raw",
-                    )
-                    image.save(png_path, format="PNG")
-                    
-                    if Path(png_path).exists():
-                        if str(target_path) != png_path:
-                            target_path.unlink(missing_ok=True)
-                            target_path = Path(png_path)
-                        logger.info(f"Native conversion successful: {target_path}")
-                        # Update image_data and is_heic for further processing if needed
-                        image_data = target_path.read_bytes()
-                        is_heic = False 
-            except Exception as e:
-                logger.warning(f"Native HEIC conversion failed, falling back to system tools: {e}")
-                
-                # Fallback to system tools if the library fails
-                is_heic = any(x in image_data[4:12] for x in [b'ftypheic', b'ftypheix', b'ftyphevc', b'ftypmif1'])
-                if is_heic:
-                    png_path = str(target_path.with_suffix('.png'))
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.heic') as tmp:
-                        tmp.write(image_data)
-                        tmp_path = tmp.name
-                    
-                    process = subprocess.run(
-                        f'magick "{tmp_path}" "{png_path}" 2>/dev/null || '
-                        f'convert "{tmp_path}" "{png_path}" 2>/dev/null || '
-                        f'heif-convert "{tmp_path}" "{png_path}" 2>/dev/null',
-                        shell=True,
-                        check=False
-                    )
-                    Path(tmp_path).unlink(missing_ok=True)
-                    if process.returncode == 0 and Path(png_path).exists():
-                        if str(target_path) != png_path:
-                            target_path.unlink(missing_ok=True)
-                            target_path = Path(png_path)
-                        image_data = target_path.read_bytes()
-            
-            # Cleanup temp
-            Path(tmp_path).unlink(missing_ok=True)
-            
-            if process.returncode == 0 and Path(png_path).exists():
-                # If target was "image.png" but content was HEIC, we just overwrote it with real PNG.
-                # If target was "image.heic", we now have "image.png".
-                # Update target_path to point to the PNG
-                if str(target_path) != png_path:
-                    target_path.unlink(missing_ok=True)
-                    target_path = Path(png_path)
-                logger.info(f"Conversion successful: {target_path}")
-            else:
-                logger.warning("HEIC conversion failed, keeping original file")
-
-    except Exception as e:
-        logger.error(f"Error converting HEIC: {e}")
-
-    
-    # Copy image to clipboard using wl-copy (Wayland)
-    # Detect format and convert HEIC to PNG for clipboard compatibility
-    try:
-        # Re-read data in case it was converted
-        if target_path.exists():
-             final_image_data = target_path.read_bytes()
-        else:
-             final_image_data = image_data
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-            tmp.write(final_image_data)
-            tmp_path = tmp.name
-        
-        # Copy to clipboard
-        subprocess.Popen(
-            f'cat "{tmp_path}" | wl-copy --type image/png; rm -f "{tmp_path}"',
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        print(f"Image clipboard started ({len(final_image_data)} bytes)")
-
-    except Exception as e:
-        print(f"Failed to copy image to clipboard: {e}")
-    
-    # Get file size for notification
-    size_kb = len(image_data) / 1024
-    size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
-    
-    # Save to clipboard history
-    history = load_history()
-    history.append({
-        "timestamp": datetime.now().isoformat(),
-        "type": "image",
-        "preview": f"🖼️ {target_path.name} ({size_str})",
-        "content": str(target_path),  # Path to image file
-    })
-    save_history(history)
-    
-    send_notification("🖼️ Image Received", f"{target_path.name} - Copied to clipboard!", sound="camera-shutter")
-    
-    return {
-        "status": "success",
-        "filename": target_path.name,
-        "path": str(target_path),
-        "size": len(image_data),
-        "clipboard": True,
-    }
+    return apply_image_payload(payload.image, payload.filename, "iOS")
 
 
 class MultiImagesPayload(BaseModel):
@@ -919,6 +943,12 @@ async def get_status(request: Request):
         "clients": len(SESSION_STATS["unique_ips"]),
         "requests": SESSION_STATS["request_count"],
         "install_method": install_method,
+        "relay": relay_transport.status() if relay_transport else {
+            "enabled": False,
+            "configured": False,
+            "running": False,
+            "last_error": RELAY_IMPORT_ERROR,
+        },
     }
 
 
@@ -930,6 +960,11 @@ async def get_settings(request: Request):
     return {
         "notifications_enabled": cfg.get("notifications_enabled", True),
         "start_minimized": cfg.get("start_minimized", False),
+        "relay_enabled": cfg.get("relay_enabled", False),
+        "relay_url": cfg.get("relay_url", ""),
+        "relay_pair_id": cfg.get("relay_pair_id", ""),
+        "relay_token": cfg.get("relay_token", ""),
+        "relay_poll_seconds": cfg.get("relay_poll_seconds", 3),
     }
 
 
@@ -947,15 +982,56 @@ async def update_settings(request: Request):
         cfg["notifications_enabled"] = bool(body["notifications_enabled"])
     if "start_minimized" in body:
         cfg["start_minimized"] = bool(body["start_minimized"])
+    if "relay_enabled" in body:
+        cfg["relay_enabled"] = bool(body["relay_enabled"])
+    if "relay_url" in body:
+        cfg["relay_url"] = str(body["relay_url"]).strip().rstrip("/")
+    if "relay_pair_id" in body:
+        cfg["relay_pair_id"] = str(body["relay_pair_id"]).strip()
+    if "relay_token" in body:
+        cfg["relay_token"] = str(body["relay_token"]).strip()
+    if "relay_poll_seconds" in body:
+        try:
+            cfg["relay_poll_seconds"] = max(1, min(float(body["relay_poll_seconds"]), 30))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid relay poll interval")
 
     try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(json.dumps(cfg, indent=2))
+        save_config(cfg)
     except Exception as e:
         logger.warning(f"Failed to save settings: {e}")
         raise HTTPException(status_code=500, detail="Could not persist settings")
 
     return {"ok": True, **cfg}
+
+
+@app.get("/relay/status")
+async def get_relay_status(request: Request):
+    """Return relay transport status for the GUI."""
+    check_ip_whitelist(request)
+    if relay_transport:
+        return relay_transport.status()
+    return {
+        "enabled": False,
+        "configured": False,
+        "running": False,
+        "last_error": RELAY_IMPORT_ERROR or "Relay transport is unavailable",
+    }
+
+
+@app.post("/relay/push_clipboard")
+async def relay_push_clipboard(request: Request, token: str):
+    """Push the current desktop clipboard to the phone relay inbox."""
+    check_ip_whitelist(request)
+    validate_token(token, request)
+
+    if not relay_transport:
+        raise HTTPException(status_code=503, detail=RELAY_IMPORT_ERROR or "Relay transport is unavailable")
+
+    try:
+        return relay_transport.send_current_clipboard()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/clipboard")
@@ -974,37 +1050,8 @@ async def receive_clipboard(request: Request, payload: ClipboardPayload):
     
     # Track this request
     track_request(request, "/clipboard")
-    
-    logger.info(f"Clipboard: {payload.type} ({len(payload.content)} chars)")
-    
-    content = payload.content.strip()
-    
-    # Save to clipboard history
-    history = load_history()
-    history.append({
-        "timestamp": datetime.now().isoformat(),
-        "type": payload.type,
-        "preview": content[:100] + "..." if len(content) > 100 else content,
-        "content": content,  # Full content for Copy button in History tab
-    })
-    save_history(history)
-    
-    # Handle URLs - copy to clipboard AND open in browser
-    if payload.type == "url" or is_url(content):
-        copy_to_clipboard(content)
-        try:
-            webbrowser.open(content)
-            send_notification("🌐 URL Received", content[:50] + "..." if len(content) > 50 else content, sound="complete")
-            return {"status": "success", "action": "opened_url", "clipboard": True}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to open URL: {e}")
-    
-    # Handle text - copy to clipboard
-    if copy_to_clipboard(content):
-        send_notification("📋 Clipboard Updated", content[:50] + "..." if len(content) > 50 else content, sound="message-new-instant")
-        return {"status": "success", "action": "copied_to_clipboard"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to copy to clipboard")
+
+    return apply_clipboard_payload(payload.type, payload.content, "iOS")
 
 
 @app.post("/upload")
@@ -1107,6 +1154,31 @@ async def clear_history(request: Request, token: str):
     logger.info("Clipboard history cleared")
     
     return {"status": "success", "message": "History cleared"}
+
+
+@app.on_event("startup")
+async def startup_relay_transport():
+    """Start the relay poller. It idles unless relay mode is enabled."""
+    global relay_transport
+    if RelayTransport is None:
+        if RELAY_IMPORT_ERROR:
+            logger.warning(f"Relay transport unavailable: {RELAY_IMPORT_ERROR}")
+        return
+
+    relay_transport = RelayTransport(
+        load_config=load_config,
+        read_clipboard=get_linux_clipboard,
+        write_clipboard=apply_clipboard_payload,
+        write_image=apply_image_payload,
+        logger=logger,
+    )
+    relay_transport.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_relay_transport():
+    if relay_transport:
+        relay_transport.stop()
 
 
 def check_port(port: int) -> bool:

@@ -884,7 +884,7 @@ Stop it and use ${preferred}?`;
                   {/* AppImage Fallback (GitHub) */}
                   {updateInfo.installType === "appimage" && !updateInfo.updaterHandle && (
                     <button
-                      onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                      onClick={() => openUrl(`https://github.com/AlexMontesCS/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
                       style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                     >
                       Download New AppImage
@@ -922,7 +922,7 @@ Stop it and use ${preferred}?`;
                         Update via your System Software Center or Terminal
                       </span>
                       <button
-                        onClick={() => openUrl(`https://github.com/Trex099/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
+                        onClick={() => openUrl(`https://github.com/AlexMontesCS/Velocity-Bridge/releases/tag/v${updateInfo.latestVersion}`)}
                         style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: '13px' }}
                       >
                         View Release
@@ -933,7 +933,7 @@ Stop it and use ${preferred}?`;
                   {/* Manual Fallback */}
                   {(updateInfo.installType === "manual" || !updateInfo.installType) && (
                     <button
-                      onClick={() => openUrl("https://github.com/Trex099/Velocity-Bridge/releases/latest")}
+                      onClick={() => openUrl("https://github.com/AlexMontesCS/Velocity-Bridge/releases/latest")}
                       style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'white', color: '#667eea', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
                     >
                       Download Update

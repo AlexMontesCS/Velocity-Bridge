@@ -5,7 +5,7 @@
     "platforms": {
         "linux-x86_64": {
             "signature": "",
-            "url": "https://github.com/Trex099/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage"
+            "url": "https://github.com/AlexMontesCS/Velocity-Bridge/releases/download/v3.0.4/Velocity-Bridge_3.0.4_amd64.AppImage"
         }
     }
 }

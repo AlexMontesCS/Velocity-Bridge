@@ -281,7 +281,7 @@ export default function Onboarding({
                                     Created by <strong>Arsh</strong>
                                 </p>
                                 <a
-                                    href="https://github.com/Trex099/Velocity-Bridge"
+                                    href="https://github.com/AlexMontesCS/Velocity-Bridge"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="github-link"
