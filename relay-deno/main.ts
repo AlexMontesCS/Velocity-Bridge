@@ -31,6 +31,13 @@ interface StoredMessage {
 
 const MAX_LIMIT = 100;
 const MESSAGE_TTL_SECONDS = 86400; // 24 hours
+/** Deno KV rejects values > 65536 bytes; keep JSON under this before sharding. */
+const KV_MAX_MESSAGE_BYTES = 62_000;
+/** Base64 ASCII per chunk; must fit in one KV value with margin. */
+const IMAGE_CHUNK_CHARS = 63_000;
+/** Deno atomic ops allow at most 10 mutations — meta + notify + 8 chunks. */
+const MAX_IMAGE_SHARDS = 8;
+
 const kv = await Deno.openKv();
 const DEBUG_RELAY = (Deno.env.get("RELAY_DEBUG") || "").toLowerCase() === "true";
 
@@ -73,6 +80,38 @@ function messagePrefix(pairId: string, target: Target): string[] {
   return ["pair", pairId, "msg", target];
 }
 
+/** Out-of-band storage for large base64 image slices (not under `messagePrefix`). */
+function imageChunkKey(pairId: string, target: Target, id: number, idx: number): Deno.KvKey {
+  return ["pair", pairId, "img", target, String(id), String(idx).padStart(3, "0")];
+}
+
+function jsonUtf8ByteLength(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+async function hydrateShardedMessage(
+  pairId: string,
+  target: Target,
+  message: StoredMessage,
+): Promise<StoredMessage> {
+  const p = message.payload as Record<string, unknown>;
+  const n = p._relay_image_shards;
+  if (typeof n !== "number" || n <= 0) {
+    return message;
+  }
+  const parts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = await kv.get<string>(imageChunkKey(pairId, target, message.id, i));
+    if (r.value === null || r.value === undefined) {
+      throw new HttpError(500, "Relay image shard missing");
+    }
+    parts.push(r.value);
+  }
+  const { _relay_image_shards: _s, ...clean } = p;
+  const newPayload = { ...clean, image: parts.join("") } as Omit<RelayPayload, "token">;
+  return { ...message, payload: newPayload };
+}
+
 /** Exact key bumped on every new message so `kv.watch` can wake (watch does not support prefix subtrees). */
 function streamNotifyKey(pairId: string, target: Target): Deno.KvKey {
   return ["pair", pairId, "sse", target];
@@ -100,7 +139,8 @@ async function collectMessagesForPair(
     if (correlationId && message.correlation_id !== correlationId) {
       continue;
     }
-    messages.push(message);
+    const hydrated = await hydrateShardedMessage(pairId, target, message);
+    messages.push(hydrated);
     if (messages.length >= limit) break;
   }
 
@@ -231,12 +271,64 @@ async function postMessage(
   const key = messageKey(pairId, target, id);
   const notifyKey = streamNotifyKey(pairId, target);
   const ttlMs = MESSAGE_TTL_SECONDS * 1000;
-  const commit = await kv.atomic()
-    .set(key, message, { expireIn: ttlMs })
-    .set(notifyKey, id, { expireIn: ttlMs })
-    .commit();
+
+  if (jsonUtf8ByteLength(message) <= KV_MAX_MESSAGE_BYTES) {
+    const commit = await kv.atomic()
+      .set(key, message, { expireIn: ttlMs })
+      .set(notifyKey, id, { expireIn: ttlMs })
+      .commit();
+    if (!commit.ok) {
+      throw new HttpError(503, "Relay could not store message");
+    }
+    return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
+  }
+
+  // Image base64 exceeds one KV value (~64 KiB). Shard across extra keys (same atomic, ≤10 mutations).
+  const img = payloadWithoutToken.image;
+  if (typeof img !== "string" || img.length === 0) {
+    throw new HttpError(
+      413,
+      "Message too large for relay (64 KiB per value). Shrink payload or send images only via relay.",
+    );
+  }
+
+  const chunkCount = Math.ceil(img.length / IMAGE_CHUNK_CHARS);
+  if (chunkCount > MAX_IMAGE_SHARDS) {
+    throw new HttpError(
+      413,
+      `Image too large for relay (max ~${MAX_IMAGE_SHARDS * IMAGE_CHUNK_CHARS} base64 characters).`,
+    );
+  }
+
+  const metaPayload: Record<string, unknown> = { ...payloadWithoutToken as object };
+  delete metaPayload.image;
+  metaPayload._relay_image_shards = chunkCount;
+
+  const metaMsg: StoredMessage = {
+    id,
+    target,
+    kind,
+    correlation_id: correlationId,
+    payload: metaPayload as Omit<RelayPayload, "token">,
+    created_at: now,
+  };
+
+  if (jsonUtf8ByteLength(metaMsg) > KV_MAX_MESSAGE_BYTES) {
+    throw new HttpError(413, "Message metadata too large for relay");
+  }
+
+  const op = kv.atomic().set(key, metaMsg, { expireIn: ttlMs });
+  for (let i = 0; i < chunkCount; i++) {
+    const start = i * IMAGE_CHUNK_CHARS;
+    op.set(
+      imageChunkKey(pairId, target, id, i),
+      img.slice(start, start + IMAGE_CHUNK_CHARS),
+      { expireIn: ttlMs },
+    );
+  }
+  const commit = await op.set(notifyKey, id, { expireIn: ttlMs }).commit();
   if (!commit.ok) {
-    throw new HttpError(503, "Relay could not store message");
+    throw new HttpError(503, "Relay could not store sharded message");
   }
 
   return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };

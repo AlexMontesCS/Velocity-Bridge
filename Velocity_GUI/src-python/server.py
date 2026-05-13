@@ -610,10 +610,31 @@ def copy_image_bytes_to_clipboard(image_data: bytes) -> bool:
     return False
 
 
+def decode_clipboard_base64(raw: str) -> bytes:
+    """Decode base64 from clients that may add data-URL prefixes, whitespace, or omit padding."""
+    s = (raw or "").strip()
+    if not s:
+        raise ValueError("empty base64 payload")
+    if "base64," in s:
+        s = s.split("base64,", 1)[-1].strip()
+    s = re.sub(r"\s+", "", s)
+    pad = (-len(s)) % 4
+    if pad:
+        s += "=" * pad
+    try:
+        return base64.b64decode(s)
+    except Exception:
+        t = s.replace("-", "+").replace("_", "/")
+        pad2 = (-len(t)) % 4
+        if pad2:
+            t += "=" * pad2
+        return base64.b64decode(t)
+
+
 def apply_image_payload(image_b64: str, filename: str, source_label: str = "iOS") -> dict:
     """Apply incoming image clipboard content from any transport."""
     try:
-        image_data = base64.b64decode(image_b64)
+        image_data = decode_clipboard_base64(image_b64)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Base64 data: {e}")
 
@@ -828,7 +849,7 @@ async def upload_images(request: Request, payload: MultiImagesPayload):
     
     for i, img_b64 in enumerate(payload.images):
         try:
-            image_data = base64.b64decode(img_b64)
+            image_data = decode_clipboard_base64(img_b64)
         except Exception as e:
             logger.warning(f"Skipping invalid image {i}: {e}")
             continue

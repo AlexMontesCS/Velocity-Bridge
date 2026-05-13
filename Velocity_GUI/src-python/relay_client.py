@@ -277,9 +277,19 @@ class RelayTransport:
 
     def _handle_clipboard_payload(self, payload: dict[str, Any]) -> None:
         payload_type = payload.get("type", "text")
-        if payload_type == "image" or payload.get("image"):
+        # Do not use `or payload.get("image")` alone: iOS/shortcuts often send `"image": ""`
+        # or a truthy placeholder; that wrongly routed plain text into write_image → b64 errors.
+        image_raw = payload.get("image")
+        image_str = image_raw.strip() if isinstance(image_raw, str) else ""
+        if payload_type == "image":
             self.write_image(
-                payload.get("image") or payload.get("content") or "",
+                image_str or (payload.get("content") or ""),
+                payload.get("filename") or "clipboard_image.png",
+                "Relay",
+            )
+        elif image_str:
+            self.write_image(
+                image_str,
                 payload.get("filename") or "clipboard_image.png",
                 "Relay",
             )
