@@ -37,3 +37,34 @@ def test_wrong_token_is_rejected(tmp_path, monkeypatch):
         )
         assert response.status_code == 403
 
+
+def test_phone_latest_clipboard_is_latest_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(server, "STORE_PATH", tmp_path / "relay.sqlite3")
+
+    with TestClient(server.app) as client:
+        first = client.post(
+            "/v1/pairs/test-pair/messages/phone",
+            json={"token": "12345678", "kind": "clipboard", "type": "text", "content": "one"},
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            "/v1/pairs/test-pair/messages/phone",
+            json={"token": "12345678", "kind": "clipboard", "type": "text", "content": "two"},
+        )
+        assert second.status_code == 200
+
+        fetched = client.get(
+            "/v1/pairs/test-pair/phone/latest_clipboard",
+            params={"token": "12345678"},
+        )
+        assert fetched.status_code == 200
+        data = fetched.json()
+        assert data["message"]["payload"]["content"] == "two"
+
+        empty = client.get(
+            "/v1/pairs/test-pair/phone/latest_clipboard",
+            params={"token": "12345678"},
+        )
+        assert empty.status_code == 404
+

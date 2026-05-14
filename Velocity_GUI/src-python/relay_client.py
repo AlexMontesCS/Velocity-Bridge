@@ -7,6 +7,7 @@ It posts responses back over normal HTTPS.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -42,7 +43,9 @@ class RelayTransport:
         self.logger = logger
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._clipboard_thread: threading.Thread | None = None
         self._desktop_cursor = 0
+        self._last_clipboard_signature: str | None = None
         self._last_error: str | None = None
         self._last_event: str | None = None
         self._last_poll: str | None = None
@@ -51,15 +54,30 @@ class RelayTransport:
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
+            if not (self._clipboard_thread and self._clipboard_thread.is_alive()):
+                self._clipboard_thread = threading.Thread(
+                    target=self._clipboard_sync_loop,
+                    name="velocity-relay-clipboard",
+                    daemon=True,
+                )
+                self._clipboard_thread.start()
             return
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="velocity-relay", daemon=True)
         self._thread.start()
+        self._clipboard_thread = threading.Thread(
+            target=self._clipboard_sync_loop,
+            name="velocity-relay-clipboard",
+            daemon=True,
+        )
+        self._clipboard_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2)
+        if self._clipboard_thread and self._clipboard_thread.is_alive():
+            self._clipboard_thread.join(timeout=2)
 
     def status(self) -> dict[str, Any]:
         cfg = self.load_config()
@@ -84,6 +102,16 @@ class RelayTransport:
         if content_type in ("empty", "error"):
             raise RuntimeError(content or f"Clipboard is {content_type}")
 
+        response = self._send_clipboard_to_phone(cfg, content_type, content)
+        self._last_clipboard_signature = self._clipboard_signature(content_type, content)
+        return response
+
+    def _send_clipboard_to_phone(
+        self,
+        cfg: dict[str, Any],
+        content_type: str,
+        content: str,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "token": cfg["relay_token"],
             "kind": "clipboard",
@@ -119,6 +147,37 @@ class RelayTransport:
 
             # SSE timed out/closed, reconnect immediately
             self._stop.wait(0.1)
+
+    def _clipboard_sync_loop(self) -> None:
+        while not self._stop.is_set():
+            cfg = self.load_config()
+
+            if not cfg.get("relay_enabled", False) or not self._is_configured(cfg):
+                self._stop.wait(2)
+                continue
+
+            try:
+                self._sync_local_clipboard(cfg)
+                self._last_error = None
+            except Exception as exc:  # pragma: no cover - depends on clipboard backend
+                self._last_error = str(exc)
+                self.logger.warning(f"Relay clipboard sync failed: {exc}")
+
+            self._stop.wait(self._relay_poll_seconds(cfg))
+
+    def _sync_local_clipboard(self, cfg: dict[str, Any]) -> bool:
+        content_type, content = self.read_clipboard()
+        if content_type in ("empty", "error"):
+            return False
+
+        signature = self._clipboard_signature(content_type, content)
+        if signature == self._last_clipboard_signature:
+            return False
+
+        self._send_clipboard_to_phone(cfg, content_type, content)
+        self._last_clipboard_signature = signature
+        self._last_event = f"Synced {content_type} clipboard to phone"
+        return True
 
     def _try_sse(self, cfg: dict[str, Any]) -> None:
         """
@@ -304,6 +363,9 @@ class RelayTransport:
         else:
             self.write_clipboard(payload_type, payload.get("content") or "", "Relay")
 
+        payload_content = image_str if image_str else (payload.get("content") or "")
+        self._last_clipboard_signature = self._clipboard_signature(payload_type, payload_content)
+
         self._messages_received += 1
         self._last_event = f"Received {payload_type} from relay"
 
@@ -425,6 +487,16 @@ class RelayTransport:
         if not raw:
             return {}
         return json.loads(raw)
+
+    def _clipboard_signature(self, content_type: str, content: str) -> str:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return f"{content_type}:{digest}"
+
+    def _relay_poll_seconds(self, cfg: dict[str, Any]) -> float:
+        try:
+            return max(1.0, min(float(cfg.get("relay_poll_seconds", 3)), 30.0))
+        except (TypeError, ValueError):
+            return 3.0
 
     def _base_url(self, cfg: dict[str, Any]) -> str:
         return str(cfg.get("relay_url", "")).rstrip("/")

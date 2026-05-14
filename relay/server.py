@@ -99,6 +99,13 @@ def cleanup_expired(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM messages WHERE expires_at <= ?", (time.time(),))
 
 
+def clear_phone_clipboard_queue(conn: sqlite3.Connection, pair_id: str) -> None:
+    conn.execute(
+        "DELETE FROM messages WHERE pair_id = ? AND target = 'phone' AND kind = 'clipboard'",
+        (pair_id,),
+    )
+
+
 def require_pair(conn: sqlite3.Connection, pair_id: str, token: str) -> None:
     if not pair_id or len(pair_id) > 80:
         raise HTTPException(status_code=400, detail="Invalid pair id")
@@ -152,6 +159,8 @@ async def post_message(
     with db() as conn:
         cleanup_expired(conn)
         require_pair(conn, pair_id, payload.token)
+        if target == "phone" and payload.kind == "clipboard":
+            clear_phone_clipboard_queue(conn, pair_id)
         cursor = conn.execute(
             """
             INSERT INTO messages(
@@ -214,6 +223,40 @@ async def get_messages(
         "status": "success",
         "messages": messages,
         "cursor": messages[-1]["id"] if messages else after,
+    }
+
+
+@app.get("/v1/pairs/{pair_id}/phone/latest_clipboard")
+async def phone_latest_clipboard(
+    pair_id: str,
+    token: str = Query(min_length=8),
+) -> dict[str, Any]:
+    init_db()
+
+    with db() as conn:
+        cleanup_expired(conn)
+        require_pair(conn, pair_id, token)
+
+        row = conn.execute(
+            """
+            SELECT id, target, kind, correlation_id, payload_json, created_at
+            FROM messages
+            WHERE pair_id = ? AND target = 'phone' AND kind = 'clipboard'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (pair_id,),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="No clipboard queued")
+
+        conn.execute("DELETE FROM messages WHERE id = ?", (row["id"],))
+
+    message = row_to_message(row)
+    return {
+        "status": "success",
+        "message": message,
     }
 
 
