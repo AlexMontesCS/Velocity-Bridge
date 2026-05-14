@@ -62,9 +62,11 @@ def test_phone_latest_clipboard_is_latest_only(tmp_path, monkeypatch):
         data = fetched.json()
         assert data["message"]["payload"]["content"] == "two"
 
-        empty = client.get(
+        fetched_again = client.get(
             "/v1/pairs/test-pair/phone/latest_clipboard",
             params={"token": "12345678"},
         )
-        assert empty.status_code == 404
+        assert fetched_again.status_code == 200
+        data_again = fetched_again.json()
+        assert data_again["message"]["payload"]["content"] == "two"
 

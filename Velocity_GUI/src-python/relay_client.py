@@ -423,19 +423,22 @@ class RelayTransport:
             "Accept: application/json",
             "--header",
             f"User-Agent: {USER_AGENT}",
-            "--write-out",
-            "\n%{http_code}",
-            url,
         ]
 
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
-            command[12:12] = [
+            command.extend([
                 "--header",
                 "Content-Type: application/json",
                 "--data-binary",
                 "@-",
-            ]
+            ])
+
+        command.extend([
+            "--write-out",
+            "\n%{http_code}",
+            url,
+        ])
 
         result = subprocess.run(
             command,

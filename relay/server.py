@@ -251,8 +251,6 @@ async def phone_latest_clipboard(
         if row is None:
             raise HTTPException(status_code=404, detail="No clipboard queued")
 
-        conn.execute("DELETE FROM messages WHERE id = ?", (row["id"],))
-
     message = row_to_message(row)
     return {
         "status": "success",

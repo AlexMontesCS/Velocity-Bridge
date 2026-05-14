@@ -431,7 +431,6 @@ async function getLatestPhoneClipboard(
   }
 
   const hydrated = await hydrateShardedMessage(pairId, "phone", latest);
-  await deleteMessageWithShards(pairId, "phone", latest);
 
   return {
     status: "success",
