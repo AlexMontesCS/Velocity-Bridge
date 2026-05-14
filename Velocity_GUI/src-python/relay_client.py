@@ -188,8 +188,10 @@ class RelayTransport:
             query = urllib.parse.urlencode(
                 {
                     "token": cfg["relay_token"],
-                    "timeout": 30,
-                    "max_events": 10,
+                    # Increase SSE session to reduce reconnect frequency (seconds)
+                    "timeout": 300,
+                    # Allow larger event batches before server closes the stream
+                    "max_events": 500,
                     # Omitting `after` made every SSE reconnect replay all KV messages (30s loop).
                     "after": int(self._desktop_cursor),
                 }
@@ -223,7 +225,7 @@ class RelayTransport:
             "--show-error",
             "-N",
             "--max-time",
-            "38",
+            "308",
             "--header",
             "Accept: text/event-stream",
             "--header",
