@@ -15,7 +15,6 @@ import secrets
 import socket
 import subprocess
 import tempfile
-import webbrowser
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -392,12 +391,6 @@ def play_sound(sound_name: str = "complete") -> None:
     # Silent fail if no sound could be played
 
 
-def is_url(content: str) -> bool:
-    """Check if content looks like a URL."""
-    url_pattern = re.compile(r"^https?://", re.IGNORECASE)
-    return bool(url_pattern.match(content.strip()))
-
-
 def get_linux_clipboard_image() -> tuple[str, str] | None:
     """
     Try to read image data from Linux clipboard.
@@ -529,19 +522,6 @@ def apply_clipboard_payload(payload_type: str, content: str, source_label: str =
         "content": content,
     })
     save_history(history)
-
-    if payload_type == "url" or is_url(content):
-        copy_to_clipboard(content)
-        try:
-            webbrowser.open(content)
-            send_notification(
-                f"URL Received ({source_label})",
-                content[:50] + "..." if len(content) > 50 else content,
-                sound="complete",
-            )
-            return {"status": "success", "action": "opened_url", "clipboard": True}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to open URL: {e}")
 
     if copy_to_clipboard(content):
         send_notification(
