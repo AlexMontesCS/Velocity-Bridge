@@ -303,6 +303,10 @@ async function postMessage(
     created_at: now,
   };
 
+  if (target === "phone" && kind === "clipboard") {
+    await clearPhoneClipboardQueue(pairId);
+  }
+
   const key = messageKey(pairId, target, id);
   const notifyKey = streamNotifyKey(pairId, target);
   const ttlMs = MESSAGE_TTL_SECONDS * 1000;
@@ -374,6 +378,65 @@ async function postMessage(
   }
 
   return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
+}
+
+async function deleteMessageWithShards(
+  pairId: string,
+  target: Target,
+  message: StoredMessage,
+): Promise<void> {
+  await kv.delete(messageKey(pairId, target, message.id));
+  const shards = shardCountFromPayload(message.payload as Record<string, unknown>);
+  if (shards <= 0) return;
+  for (let i = 0; i < shards; i++) {
+    await kv.delete(imageChunkKey(pairId, target, message.id, i));
+  }
+}
+
+async function clearPhoneClipboardQueue(pairId: string): Promise<void> {
+  const prefix = messagePrefix(pairId, "phone");
+  const entries = kv.list<StoredMessage>({ prefix });
+  for await (const entry of entries) {
+    const message = entry.value;
+    if (!message || message.kind !== "clipboard") {
+      continue;
+    }
+    await deleteMessageWithShards(pairId, "phone", message);
+  }
+}
+
+async function getLatestPhoneClipboard(
+  pairId: string,
+  params: URLSearchParams,
+): Promise<Record<string, unknown>> {
+  const token = params.get("token") || "";
+  await requirePair(pairId, token);
+
+  const prefix = messagePrefix(pairId, "phone");
+  const entries = kv.list<StoredMessage>({ prefix });
+
+  let latest: StoredMessage | null = null;
+  for await (const entry of entries) {
+    const message = entry.value;
+    if (!message || message.kind !== "clipboard") {
+      continue;
+    }
+    if (!latest || message.id > latest.id) {
+      latest = message;
+    }
+  }
+
+  if (!latest) {
+    throw new HttpError(404, "No clipboard queued");
+  }
+
+  const hydrated = await hydrateShardedMessage(pairId, "phone", latest);
+  await deleteMessageWithShards(pairId, "phone", latest);
+
+  return {
+    status: "success",
+    message: hydrated,
+  };
 }
 
 async function getMessages(
@@ -653,6 +716,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
     ) {
       const pairId = parts[2];
       const action = parts[4];
+
+      if (action === "latest_clipboard" && request.method === "GET") {
+        return json(await getLatestPhoneClipboard(pairId, url.searchParams));
+      }
 
       if (request.method !== "POST") {
         throw new HttpError(405, "Method not allowed");
