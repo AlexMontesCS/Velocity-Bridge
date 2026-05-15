@@ -412,20 +412,38 @@ async function getLatestPhoneClipboard(
   const token = params.get("token") || "";
   await requirePair(pairId, token);
 
+  const correlationId = params.get("correlation_id");
+
   const prefix = messagePrefix(pairId, "phone");
   const entries = kv.list<StoredMessage>({ prefix });
 
-  let latest: StoredMessage | null = null;
+  let latestResponse: StoredMessage | null = null;
+  let latestClipboard: StoredMessage | null = null;
   for await (const entry of entries) {
     const message = entry.value;
-    if (!message || message.kind !== "clipboard") {
+    if (!message) {
       continue;
     }
-    if (!latest || message.id > latest.id) {
-      latest = message;
+
+    if (correlationId && message.correlation_id !== correlationId) {
+      continue;
+    }
+
+    if (message.kind === "response") {
+      if (!latestResponse || message.id > latestResponse.id) {
+        latestResponse = message;
+      }
+      continue;
+    }
+
+    if (message.kind === "clipboard") {
+      if (!latestClipboard || message.id > latestClipboard.id) {
+        latestClipboard = message;
+      }
     }
   }
 
+  const latest = latestResponse || latestClipboard;
   if (!latest) {
     throw new HttpError(404, "No clipboard queued");
   }

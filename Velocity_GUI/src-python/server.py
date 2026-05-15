@@ -396,10 +396,10 @@ def get_linux_clipboard_image() -> tuple[str, str] | None:
     Try to read image data from Linux clipboard.
     Returns (content_type, base64_data) if image exists, None otherwise.
     """
-    display = os.environ.get("WAYLAND_DISPLAY")
+    display_server = detect_display_server()
     
     try:
-        if display:
+        if display_server == "wayland":
             # Wayland - check for image/png first
             # Check what MIME types are available
             list_result = subprocess.run(
@@ -468,10 +468,10 @@ def get_linux_clipboard() -> tuple[str, str]:
         return image_result
     
     # Fall back to text
-    display = os.environ.get("WAYLAND_DISPLAY")
+    display_server = detect_display_server()
     
     try:
-        if display:
+        if display_server == "wayland":
             # Wayland - get text
             result = subprocess.run(
                 ["wl-paste", "--no-newline"],

@@ -144,6 +144,14 @@ class RelayTransport:
             except Exception as exc:  # pragma: no cover - depends on network
                 self._last_error = str(exc)
                 self.logger.warning(f"Relay SSE failed: {exc}")
+                try:
+                    self._poll_once(cfg)
+                    self._last_error = None
+                    self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
+                    self.logger.info("Relay polling fallback succeeded")
+                except Exception as poll_exc:  # pragma: no cover - depends on network
+                    self._last_error = str(poll_exc)
+                    self.logger.warning(f"Relay polling fallback failed: {poll_exc}")
 
             # SSE timed out/closed, reconnect immediately
             self._stop.wait(0.1)
@@ -224,6 +232,7 @@ class RelayTransport:
             "--silent",
             "--show-error",
             "-N",
+            "--http1.1",
             "--max-time",
             "308",
             "--header",

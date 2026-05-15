@@ -46,7 +46,7 @@ FINAL_APPIMAGE="$APPIMAGE_DIR/$APPIMAGE_NAME"
 APPDIR="$(find "$APPIMAGE_DIR" -maxdepth 1 -type d -name "*.AppDir" 2>/dev/null | head -n 1 || true)"
 EXISTING_APPIMAGE="$(find "$APPIMAGE_DIR" -maxdepth 1 -type f -name "*.AppImage" 2>/dev/null | head -n 1 || true)"
 
-if [ -n "$EXISTING_APPIMAGE" ] && [ ! -d "$APPDIR" ]; then
+if [ -n "$EXISTING_APPIMAGE" ]; then
     cp "$EXISTING_APPIMAGE" "$RELEASE_DIR/$APPIMAGE_NAME"
     echo "✅ Existing AppImage copied to $RELEASE_DIR/$APPIMAGE_NAME"
 elif [ -d "$APPDIR" ]; then
@@ -61,15 +61,19 @@ elif [ -d "$APPDIR" ]; then
         APPIMAGETOOL="$(command -v appimagetool)"
     fi
     if [ ! -x "$APPIMAGETOOL" ]; then
-        echo "❌ Error: appimagetool not found. Set APPIMAGETOOL=/path/to/appimagetool or install appimagetool."
-        exit 1
+        echo "⚠️  appimagetool not found; keeping the existing Tauri AppDir artifacts only."
+        echo "   Set APPIMAGETOOL=/path/to/appimagetool or install appimagetool to rebuild the AppImage here."
+        if [ -d "$APPDIR" ]; then
+            echo "   AppDir is available at: $APPDIR"
+        fi
+        FINAL_APPIMAGE=""
+    else
+        ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$FINAL_APPIMAGE"
+        
+        # Copy to release folder
+        cp "$FINAL_APPIMAGE" "$RELEASE_DIR/"
+        echo "✅ AppImage created and moved to $RELEASE_DIR"
     fi
-
-    ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$FINAL_APPIMAGE"
-    
-    # Copy to release folder
-    cp "$FINAL_APPIMAGE" "$RELEASE_DIR/"
-    echo "✅ AppImage created and moved to $RELEASE_DIR"
 else
     echo "❌ Error: No AppDir or AppImage found in $APPIMAGE_DIR. Build failed."
     echo "Bundle directory contents:"
@@ -91,4 +95,8 @@ echo "--------------------------------------------------"
 # 6. Helper instructions
 echo "💡 To test a fresh install, run:"
 echo "   rm -rf ~/.local/share/com.arsh.velocity-bridge ~/.config/com.arsh.velocity-bridge"
-echo "   '$RELEASE_DIR/$APPIMAGE_NAME'"
+if [ -n "$FINAL_APPIMAGE" ]; then
+    echo "   '$RELEASE_DIR/$APPIMAGE_NAME'"
+else
+    echo "   AppImage was not rebuilt locally; use the available DEB/RPM artifact or install appimagetool and rerun."
+fi
