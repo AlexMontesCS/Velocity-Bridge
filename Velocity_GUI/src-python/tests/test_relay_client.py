@@ -58,7 +58,7 @@ def test_stream_sse_uses_http11(monkeypatch):
     assert "--http1.1" in captured["command"]
 
 
-def test_run_falls_back_to_polling(monkeypatch):
+def test_run_does_not_poll_when_sse_fails(monkeypatch):
     transport = _make_transport()
     events = []
 
@@ -75,16 +75,14 @@ def test_run_falls_back_to_polling(monkeypatch):
 
     transport._stop = FakeStop()
     monkeypatch.setattr(transport, "_try_sse", lambda cfg: (_ for _ in ()).throw(RuntimeError("boom")))
-    monkeypatch.setattr(transport, "_poll_once", lambda cfg: events.append("polled"))
-    monkeypatch.setattr(transport, "_relay_poll_seconds", lambda cfg: 0.01)
 
     transport._run()
 
-    assert events == ["polled"]
-    assert transport._last_error is None
+    assert events == []
+    assert transport._last_error == "boom"
 
 
-def test_run_polls_after_clean_sse_session(monkeypatch):
+def test_run_reconnects_without_polling_after_clean_sse_session(monkeypatch):
     transport = _make_transport()
     events = []
 
@@ -101,11 +99,10 @@ def test_run_polls_after_clean_sse_session(monkeypatch):
 
     transport._stop = FakeStop()
     monkeypatch.setattr(transport, "_try_sse", lambda cfg: events.append("sse"))
-    monkeypatch.setattr(transport, "_poll_once", lambda cfg: events.append("polled"))
 
     transport._run()
 
-    assert events == ["sse", "polled"]
+    assert events == ["sse"]
     assert transport._last_error is None
 
 
@@ -171,7 +168,7 @@ def test_duplicate_overlap_message_is_skipped():
     assert len(writes) == 1
 
 
-def test_clipboard_sync_loop_polls_while_sse_is_open(monkeypatch):
+def test_clipboard_sync_loop_syncs_without_polling(monkeypatch):
     transport = _make_transport()
     events = []
 
@@ -187,10 +184,9 @@ def test_clipboard_sync_loop_polls_while_sse_is_open(monkeypatch):
             return True
 
     transport._stop = FakeStop()
-    monkeypatch.setattr(transport, "_poll_once", lambda cfg: events.append("polled"))
     monkeypatch.setattr(transport, "_sync_local_clipboard", lambda cfg: events.append("synced"))
-    monkeypatch.setattr(transport, "_relay_poll_seconds", lambda cfg: 0.01)
+    monkeypatch.setattr(transport, "_clipboard_sync_seconds", lambda cfg: 0.01)
 
     transport._clipboard_sync_loop()
 
-    assert events == ["polled", "synced"]
+    assert events == ["synced"]

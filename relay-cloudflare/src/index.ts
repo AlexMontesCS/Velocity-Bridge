@@ -28,10 +28,21 @@ interface StoredMessage {
   created_at: number;
 }
 
+interface SseSubscriber {
+  target: Target;
+  writer: WritableStreamDefaultWriter<Uint8Array>;
+  lastEmitted: number;
+  correlationId: string | null;
+  maxEvents: number;
+  eventCount: number;
+  closed: boolean;
+  heartbeatId?: ReturnType<typeof setInterval>;
+  timeoutId?: ReturnType<typeof setTimeout>;
+}
+
 const MAX_LIMIT = 100;
 const INBOX_INDEX_LIMIT = 500;
 const SSE_HEARTBEAT_MS = 15_000;
-const SSE_POLL_MS = 1_000;
 const IMAGE_CHUNK_CHARS = 90_000;
 const MAX_IMAGE_SHARDS = 40;
 const encoder = new TextEncoder();
@@ -68,6 +79,11 @@ export default {
 };
 
 class VelocityRelayPair {
+  private subscribers: Map<Target, Set<SseSubscriber>> = new Map([
+    ["desktop", new Set()],
+    ["phone", new Set()],
+  ]);
+
   constructor(
     private readonly state: DurableObjectState,
     private readonly env: Env,
@@ -180,6 +196,7 @@ class VelocityRelayPair {
     const stored = await this.storeMessage(target, message);
     await this.appendInboxIndex(target, id);
     await this.state.storage.put(latestMessageKey(target), stored);
+    this.notifySubscribers(target, stored);
 
     return { status: "queued", id, expires_in: this.messageTtlSeconds() };
   }
@@ -254,82 +271,33 @@ class VelocityRelayPair {
     const timeoutSeconds = Math.max(1, safeNumber(params.get("timeout"), 300));
     const maxEvents = Math.max(1, safeNumber(params.get("max_events"), 500));
     const correlationId = params.get("correlation_id");
-    let closed = false;
 
-    const stream = new ReadableStream<Uint8Array>({
-      start: async (controller) => {
-        const deadline = Date.now() + timeoutSeconds * 1000;
-        let eventCount = 0;
-        let lastEmitted = after;
-        let lastHeartbeat = Date.now();
+    const stream = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = stream.writable.getWriter();
+    const subscriber: SseSubscriber = {
+      target,
+      writer,
+      lastEmitted: after,
+      correlationId,
+      maxEvents,
+      eventCount: 0,
+      closed: false,
+    };
 
-        const enqueue = (chunk: string): boolean => {
-          if (closed) {
-            return false;
-          }
-          try {
-            controller.enqueue(encoder.encode(chunk));
-            return true;
-          } catch {
-            closed = true;
-            return false;
-          }
-        };
+    this.subscribers.get(target)?.add(subscriber);
+    await this.writeSse(subscriber, ": ready\n\n");
 
-        enqueue(": ready\n\n");
+    subscriber.heartbeatId = setInterval(() => {
+      void this.writeSse(subscriber, ": heartbeat\n\n");
+    }, SSE_HEARTBEAT_MS);
 
-        try {
-          while (!closed && eventCount < maxEvents && Date.now() < deadline) {
-            const remainingEvents = maxEvents - eventCount;
-            const messages = await this.collectMessages(
-              target,
-              lastEmitted,
-              Math.min(remainingEvents, MAX_LIMIT),
-              correlationId,
-            );
+    subscriber.timeoutId = setTimeout(() => {
+      this.closeSubscriber(subscriber);
+    }, timeoutSeconds * 1000);
 
-            for (const message of messages) {
-              if (!enqueue(`data: ${JSON.stringify(message)}\n\n`)) {
-                break;
-              }
-              lastEmitted = Math.max(lastEmitted, message.id);
-              eventCount += 1;
-              if (eventCount >= maxEvents) {
-                break;
-              }
-            }
+    await this.drainSubscriber(subscriber);
 
-            if (closed || eventCount >= maxEvents || Date.now() >= deadline) {
-              break;
-            }
-
-            if (Date.now() - lastHeartbeat >= SSE_HEARTBEAT_MS) {
-              if (!enqueue(": heartbeat\n\n")) {
-                break;
-              }
-              lastHeartbeat = Date.now();
-            }
-
-            await sleep(Math.min(SSE_POLL_MS, Math.max(0, deadline - Date.now())));
-          }
-        } catch (error) {
-          const detail = error instanceof Error ? error.message.slice(0, 300) : "Stream error";
-          enqueue(`event: error\ndata: ${JSON.stringify({ detail })}\n\n`);
-        } finally {
-          closed = true;
-          try {
-            controller.close();
-          } catch {
-            // The client may already have closed the stream.
-          }
-        }
-      },
-      cancel: () => {
-        closed = true;
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(stream.readable, {
       headers: sseHeaders(),
     });
   }
@@ -481,6 +449,95 @@ class VelocityRelayPair {
       .slice(0, limit);
   }
 
+  private async drainSubscriber(subscriber: SseSubscriber): Promise<void> {
+    const remaining = subscriber.maxEvents - subscriber.eventCount;
+    if (remaining <= 0 || subscriber.closed) {
+      this.closeSubscriber(subscriber);
+      return;
+    }
+
+    const messages = await this.collectMessages(
+      subscriber.target,
+      subscriber.lastEmitted,
+      Math.min(remaining, MAX_LIMIT),
+      subscriber.correlationId,
+    );
+
+    for (const message of messages) {
+      const emitted = await this.emitMessage(subscriber, message);
+      if (!emitted) {
+        return;
+      }
+    }
+  }
+
+  private notifySubscribers(target: Target, message: StoredMessage): void {
+    const bucket = this.subscribers.get(target);
+    if (!bucket) {
+      return;
+    }
+
+    for (const subscriber of [...bucket]) {
+      void this.emitMessage(subscriber, message);
+    }
+  }
+
+  private async emitMessage(subscriber: SseSubscriber, message: StoredMessage): Promise<boolean> {
+    if (subscriber.closed || message.id <= subscriber.lastEmitted) {
+      return !subscriber.closed;
+    }
+    if (subscriber.correlationId && message.correlation_id !== subscriber.correlationId) {
+      return true;
+    }
+
+    const ok = await this.writeSse(subscriber, `data: ${JSON.stringify(message)}\n\n`);
+    if (!ok) {
+      return false;
+    }
+
+    subscriber.lastEmitted = message.id;
+    subscriber.eventCount += 1;
+    if (subscriber.eventCount >= subscriber.maxEvents) {
+      this.closeSubscriber(subscriber);
+      return false;
+    }
+    return true;
+  }
+
+  private async writeSse(subscriber: SseSubscriber, chunk: string): Promise<boolean> {
+    if (subscriber.closed) {
+      return false;
+    }
+    try {
+      await subscriber.writer.write(encoder.encode(chunk));
+      return true;
+    } catch {
+      this.closeSubscriber(subscriber);
+      return false;
+    }
+  }
+
+  private closeSubscriber(subscriber: SseSubscriber): void {
+    if (subscriber.closed) {
+      return;
+    }
+    subscriber.closed = true;
+    if (subscriber.heartbeatId) {
+      clearInterval(subscriber.heartbeatId);
+    }
+    if (subscriber.timeoutId) {
+      clearTimeout(subscriber.timeoutId);
+    }
+    this.subscribers.get(subscriber.target)?.delete(subscriber);
+    try {
+      void subscriber.writer.close().catch(() => {
+        // The client may already have closed the stream.
+      });
+    } catch {
+      // The client may already have closed the stream.
+    }
+  }
+
   private async clearPhoneClipboardQueue(): Promise<void> {
     const messages = await this.collectMessages("phone", 0, INBOX_INDEX_LIMIT, null);
     const deleteKeys: string[] = [];
@@ -602,10 +659,6 @@ function safeNumber(value: string | null | undefined, fallback: number): number 
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function messagePrefix(target: Target): string {

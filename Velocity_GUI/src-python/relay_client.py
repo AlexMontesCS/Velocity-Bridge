@@ -2,8 +2,7 @@
 Outbound HTTPS relay client for Velocity Bridge.
 
 The desktop never accepts inbound relay traffic. It subscribes to a public relay via SSE
-(Server-Sent Events) for phone-to-desktop messages, with fallback to polling if SSE fails.
-It posts responses back over normal HTTPS.
+(Server-Sent Events) for phone-to-desktop messages. It posts responses back over normal HTTPS.
 """
 from __future__ import annotations
 
@@ -50,7 +49,6 @@ class RelayTransport:
         self._last_clipboard_signature: str | None = None
         self._last_error: str | None = None
         self._last_event: str | None = None
-        self._last_poll: str | None = None
         self._messages_received = 0
         self._messages_sent = 0
         self._seen_desktop_message_ids: list[int] = []
@@ -92,7 +90,6 @@ class RelayTransport:
             "pair_id": cfg.get("relay_pair_id", ""),
             "last_error": self._last_error,
             "last_event": self._last_event,
-            "last_poll": self._last_poll,
             "messages_received": self._messages_received,
             "messages_sent": self._messages_sent,
         }
@@ -142,20 +139,11 @@ class RelayTransport:
             try:
                 # Use SSE for real-time delivery
                 self._try_sse(cfg)
-                self._poll_once(cfg)
                 self._last_error = None
-                self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
             except Exception as exc:  # pragma: no cover - depends on network
                 self._last_error = str(exc)
                 self.logger.warning(f"Relay SSE failed: {exc}")
-                try:
-                    self._poll_once(cfg)
-                    self._last_error = None
-                    self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
-                    self.logger.info("Relay polling fallback succeeded")
-                except Exception as poll_exc:  # pragma: no cover - depends on network
-                    self._last_error = str(poll_exc)
-                    self.logger.warning(f"Relay polling fallback failed: {poll_exc}")
+                self._stop.wait(2)
 
             # SSE timed out/closed, reconnect immediately
             self._stop.wait(0.1)
@@ -169,16 +157,13 @@ class RelayTransport:
                 continue
 
             try:
-                # SSE is best-effort on serverless relays; keep polling so a quiet
-                # or stuck stream cannot strand phone-to-desktop messages.
-                self._poll_once(cfg)
                 self._sync_local_clipboard(cfg)
                 self._last_error = None
             except Exception as exc:  # pragma: no cover - depends on clipboard backend
                 self._last_error = str(exc)
                 self.logger.warning(f"Relay clipboard sync failed: {exc}")
 
-            self._stop.wait(self._relay_poll_seconds(cfg))
+            self._stop.wait(self._clipboard_sync_seconds(cfg))
 
     def _sync_local_clipboard(self, cfg: dict[str, Any]) -> bool:
         content_type, content = self.read_clipboard()
@@ -322,11 +307,6 @@ class RelayTransport:
         self._process_desktop_message(cfg, message)
 
 
-    def _poll_once(self, cfg: dict[str, Any]) -> None:
-        messages = self._get_messages(cfg, "desktop", self._desktop_after_cursor())
-        for message in messages:
-            self._process_desktop_message(cfg, message)
-
     def _process_desktop_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
         message_id = int(message.get("id", 0))
         if message_id in self._seen_desktop_message_ids:
@@ -411,20 +391,6 @@ class RelayTransport:
 
         self._messages_received += 1
         self._last_event = f"Received {payload_type} from relay"
-
-    def _get_messages(self, cfg: dict[str, Any], target: str, after: int) -> list[dict[str, Any]]:
-        query = urllib.parse.urlencode(
-            {
-                "token": cfg["relay_token"],
-                "after": after,
-                "limit": 25,
-            }
-        )
-        pair_id = urllib.parse.quote(cfg['relay_pair_id'], safe='')
-        target_encoded = urllib.parse.quote(target, safe='')
-        url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/messages/{target_encoded}?{query}"
-        data = self._request_json("GET", url)
-        return data.get("messages", [])
 
     def _post_message(
         self,
@@ -538,7 +504,7 @@ class RelayTransport:
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return f"{content_type}:{digest}"
 
-    def _relay_poll_seconds(self, cfg: dict[str, Any]) -> float:
+    def _clipboard_sync_seconds(self, cfg: dict[str, Any]) -> float:
         try:
             return max(1.0, min(float(cfg.get("relay_poll_seconds", 3)), 30.0))
         except (TypeError, ValueError):

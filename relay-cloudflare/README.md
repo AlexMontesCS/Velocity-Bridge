@@ -4,14 +4,15 @@
 
 This relay runs as a Cloudflare Worker with one Durable Object per pair ID.
 Messages are stored inside that pair's Durable Object, and desktop delivery uses
-Server-Sent Events with the existing polling endpoint as a fallback.
+Server-Sent Events. The `GET /messages/...` endpoint remains available for
+manual debugging and older clients.
 
 ## Why Cloudflare?
 
 Deno KV can read recently queued messages from one edge while a later laptop poll
 lands on another edge and sees nothing. Durable Objects avoid that class of bug:
 all traffic for a pair ID is routed to the same object, so cellular phone sends
-and laptop SSE/polling reads share one consistent state.
+and laptop SSE reads share one consistent state.
 
 Cloudflare's Workers free tier includes Workers and Durable Objects usage that is
 enough for personal clipboard syncing.
