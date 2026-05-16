@@ -135,3 +135,37 @@ def test_stream_sse_treats_idle_tls_eof_as_transient(monkeypatch):
     monkeypatch.setattr(relay_client.subprocess, "Popen", FakeProc)
 
     transport._stream_sse_with_curl("https://example.invalid/stream", transport.load_config())
+
+
+def test_desktop_after_cursor_uses_overlap():
+    transport = _make_transport()
+    transport._desktop_cursor = 1_778_894_555_190_121
+
+    assert transport._desktop_after_cursor() == 1_778_893_955_190_121
+
+
+def test_duplicate_overlap_message_is_skipped():
+    writes = []
+    transport = relay_client.RelayTransport(
+        load_config=lambda: {
+            "relay_enabled": True,
+            "relay_url": "https://example.invalid",
+            "relay_pair_id": "pair-123",
+            "relay_token": "token-123",
+        },
+        read_clipboard=lambda: ("text", "hello"),
+        write_clipboard=lambda *args, **kwargs: writes.append(args) or {},
+        write_image=lambda *args, **kwargs: {},
+        logger=_NoopLogger(),
+    )
+    cfg = transport.load_config()
+    message = {
+        "id": 123,
+        "kind": "clipboard",
+        "payload": {"kind": "clipboard", "type": "text", "content": "hello"},
+    }
+
+    transport._process_desktop_message(cfg, message)
+    transport._process_desktop_message(cfg, message)
+
+    assert len(writes) == 1

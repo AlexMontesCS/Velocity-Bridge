@@ -20,6 +20,8 @@ from typing import Any, Callable
 
 
 USER_AGENT = "VelocityBridge-iOS/3.0"
+RELAY_CURSOR_OVERLAP = 600_000_000  # 10 minutes in the relay's millisecond*1000 ids.
+MAX_SEEN_DESKTOP_MESSAGES = 500
 
 ClipboardReader = Callable[[], tuple[str, str]]
 ClipboardWriter = Callable[[str, str, str], dict[str, Any]]
@@ -51,6 +53,7 @@ class RelayTransport:
         self._last_poll: str | None = None
         self._messages_received = 0
         self._messages_sent = 0
+        self._seen_desktop_message_ids: list[int] = []
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -202,7 +205,7 @@ class RelayTransport:
                     # Allow larger event batches before server closes the stream
                     "max_events": 500,
                     # Omitting `after` made every SSE reconnect replay all KV messages (30s loop).
-                    "after": int(self._desktop_cursor),
+                    "after": self._desktop_after_cursor(),
                 }
             )
             url = f"{self._base_url(cfg)}/v1/pairs/{pair_id}/subscribe/desktop?{query}"
@@ -313,6 +316,20 @@ class RelayTransport:
 
     def _handle_sse_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
         """Handle a message received via SSE."""
+        self._process_desktop_message(cfg, message)
+
+
+    def _poll_once(self, cfg: dict[str, Any]) -> None:
+        messages = self._get_messages(cfg, "desktop", self._desktop_after_cursor())
+        for message in messages:
+            self._process_desktop_message(cfg, message)
+
+    def _process_desktop_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
+        message_id = int(message.get("id", 0))
+        if message_id in self._seen_desktop_message_ids:
+            self._desktop_cursor = max(self._desktop_cursor, message_id)
+            return
+
         payload = message.get("payload", {})
         kind = payload.get("kind") or message.get("kind")
 
@@ -321,21 +338,18 @@ class RelayTransport:
         elif kind in ("clipboard", "response"):
             self._handle_clipboard_payload(payload)
 
-        self._desktop_cursor = max(self._desktop_cursor, int(message.get("id", 0)))
+        self._mark_desktop_message_seen(message_id)
+        self._desktop_cursor = max(self._desktop_cursor, message_id)
 
+    def _mark_desktop_message_seen(self, message_id: int) -> None:
+        if message_id <= 0:
+            return
+        self._seen_desktop_message_ids.append(message_id)
+        if len(self._seen_desktop_message_ids) > MAX_SEEN_DESKTOP_MESSAGES:
+            del self._seen_desktop_message_ids[:-MAX_SEEN_DESKTOP_MESSAGES]
 
-    def _poll_once(self, cfg: dict[str, Any]) -> None:
-        messages = self._get_messages(cfg, "desktop", self._desktop_cursor)
-        for message in messages:
-            payload = message.get("payload", {})
-            kind = payload.get("kind") or message.get("kind")
-
-            if kind == "command":
-                self._handle_command(cfg, payload)
-            elif kind in ("clipboard", "response"):
-                self._handle_clipboard_payload(payload)
-
-            self._desktop_cursor = max(self._desktop_cursor, int(message["id"]))
+    def _desktop_after_cursor(self) -> int:
+        return max(0, int(self._desktop_cursor) - RELAY_CURSOR_OVERLAP)
 
     def _handle_command(self, cfg: dict[str, Any], payload: dict[str, Any]) -> None:
         if payload.get("command") != "get_clipboard":

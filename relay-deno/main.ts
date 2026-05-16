@@ -154,6 +154,30 @@ function streamNotifyKey(pairId: string, target: Target): Deno.KvKey {
   return ["pair", pairId, "sse", target];
 }
 
+function sequenceKey(pairId: string): Deno.KvKey {
+  return ["pair", pairId, "seq"];
+}
+
+async function nextMessageId(pairId: string): Promise<number> {
+  const key = sequenceKey(pairId);
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const current = await kv.get<number>(key);
+    const wallClockId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    const previous = typeof current.value === "number" ? current.value : 0;
+    const next = Math.max(previous + 1, wallClockId);
+    const commit = await kv.atomic()
+      .check(current)
+      .set(key, next, { expireIn: MESSAGE_TTL_SECONDS * 1000 })
+      .commit();
+    if (commit.ok) {
+      return next;
+    }
+  }
+
+  throw new HttpError(503, "Relay could not allocate message id");
+}
+
 async function collectMessagesForPair(
   pairId: string,
   target: Target,
@@ -291,7 +315,7 @@ async function postMessage(
   await requirePair(pairId, payload.token);
 
   const now = Math.floor(Date.now() / 1000);
-  const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  const id = await nextMessageId(pairId);
   const correlationId = payload.correlation_id || payload.request_id;
   const payloadWithoutToken = withoutToken(payload);
   const kind = payload.kind || "clipboard";
