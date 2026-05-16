@@ -239,6 +239,28 @@ function debugLog(message: string, data?: unknown): void {
   console.log(`[relay] ${message}`, data);
 }
 
+async function debugVerifyQueuedMessage(
+  key: Deno.KvKey,
+  pairId: string,
+  target: Target,
+  id: number,
+): Promise<void> {
+  if (!DEBUG_RELAY) {
+    return;
+  }
+  const stored = await kv.get<StoredMessage>(key).catch((error) => ({ value: null, error }));
+  debugLog("queued message readback", {
+    pairId,
+    pairIdLength: pairId.length,
+    target,
+    id,
+    readable: Boolean(stored.value && stored.value.id === id),
+    storedId: stored.value?.id,
+    storedTarget: stored.value?.target,
+    error: "error" in stored ? String(stored.error) : undefined,
+  });
+}
+
 function requireTarget(value: string): Target {
   if (value === "desktop" || value === "phone") {
     return value;
@@ -347,6 +369,7 @@ async function postMessage(
       if (!commit.ok) {
         throw new HttpError(503, "Relay could not store message");
       }
+      await debugVerifyQueuedMessage(key, pairId, target, id);
       debugLog("queued message", {
         pairId,
         pairIdLength: pairId.length,
@@ -410,6 +433,7 @@ async function postMessage(
   if (!commit.ok) {
     throw new HttpError(503, "Relay could not store sharded message");
   }
+  await debugVerifyQueuedMessage(key, pairId, target, id);
   debugLog("queued sharded message", {
     pairId,
     pairIdLength: pairId.length,
