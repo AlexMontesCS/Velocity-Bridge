@@ -36,6 +36,8 @@ interface SseSubscriber {
   maxEvents: number;
   eventCount: number;
   closed: boolean;
+  closedPromise: Promise<void>;
+  resolveClosed: () => void;
   heartbeatId?: ReturnType<typeof setInterval>;
   timeoutId?: ReturnType<typeof setTimeout>;
 }
@@ -274,6 +276,10 @@ class VelocityRelayPair {
 
     const stream = new TransformStream<Uint8Array, Uint8Array>();
     const writer = stream.writable.getWriter();
+    let resolveClosed: () => void = () => {};
+    const closedPromise = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
     const subscriber: SseSubscriber = {
       target,
       writer,
@@ -282,20 +288,30 @@ class VelocityRelayPair {
       maxEvents,
       eventCount: 0,
       closed: false,
+      closedPromise,
+      resolveClosed,
     };
 
     this.subscribers.get(target)?.add(subscriber);
-    await this.writeSse(subscriber, ": ready\n\n");
+    this.state.waitUntil(closedPromise);
+    this.writeSse(subscriber, ": ready\n\n");
 
     subscriber.heartbeatId = setInterval(() => {
-      void this.writeSse(subscriber, ": heartbeat\n\n");
+      this.writeSse(subscriber, ": heartbeat\n\n");
     }, SSE_HEARTBEAT_MS);
 
     subscriber.timeoutId = setTimeout(() => {
       this.closeSubscriber(subscriber);
     }, timeoutSeconds * 1000);
 
-    await this.drainSubscriber(subscriber);
+    void this.drainSubscriber(subscriber).catch((error) => {
+      const detail = error instanceof Error ? error.message.slice(0, 300) : "Stream error";
+      this.writeSse(
+        subscriber,
+        `event: error\ndata: ${JSON.stringify({ detail })}\n\n`,
+      );
+      this.closeSubscriber(subscriber);
+    });
 
     return new Response(stream.readable, {
       headers: sseHeaders(),
@@ -464,7 +480,7 @@ class VelocityRelayPair {
     );
 
     for (const message of messages) {
-      const emitted = await this.emitMessage(subscriber, message);
+      const emitted = this.emitMessage(subscriber, message);
       if (!emitted) {
         return;
       }
@@ -478,11 +494,11 @@ class VelocityRelayPair {
     }
 
     for (const subscriber of [...bucket]) {
-      void this.emitMessage(subscriber, message);
+      this.emitMessage(subscriber, message);
     }
   }
 
-  private async emitMessage(subscriber: SseSubscriber, message: StoredMessage): Promise<boolean> {
+  private emitMessage(subscriber: SseSubscriber, message: StoredMessage): boolean {
     if (subscriber.closed || message.id <= subscriber.lastEmitted) {
       return !subscriber.closed;
     }
@@ -490,7 +506,7 @@ class VelocityRelayPair {
       return true;
     }
 
-    const ok = await this.writeSse(subscriber, `data: ${JSON.stringify(message)}\n\n`);
+    const ok = this.writeSse(subscriber, `data: ${JSON.stringify(message)}\n\n`);
     if (!ok) {
       return false;
     }
@@ -504,12 +520,14 @@ class VelocityRelayPair {
     return true;
   }
 
-  private async writeSse(subscriber: SseSubscriber, chunk: string): Promise<boolean> {
+  private writeSse(subscriber: SseSubscriber, chunk: string): boolean {
     if (subscriber.closed) {
       return false;
     }
     try {
-      await subscriber.writer.write(encoder.encode(chunk));
+      void subscriber.writer.write(encoder.encode(chunk)).catch(() => {
+        this.closeSubscriber(subscriber);
+      });
       return true;
     } catch {
       this.closeSubscriber(subscriber);
@@ -536,6 +554,7 @@ class VelocityRelayPair {
     } catch {
       // The client may already have closed the stream.
     }
+    subscriber.resolveClosed();
   }
 
   private async clearPhoneClipboardQueue(): Promise<void> {
