@@ -169,6 +169,9 @@ class RelayTransport:
                 continue
 
             try:
+                # SSE is best-effort on serverless relays; keep polling so a quiet
+                # or stuck stream cannot strand phone-to-desktop messages.
+                self._poll_once(cfg)
                 self._sync_local_clipboard(cfg)
                 self._last_error = None
             except Exception as exc:  # pragma: no cover - depends on clipboard backend

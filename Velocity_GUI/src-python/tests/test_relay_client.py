@@ -169,3 +169,28 @@ def test_duplicate_overlap_message_is_skipped():
     transport._process_desktop_message(cfg, message)
 
     assert len(writes) == 1
+
+
+def test_clipboard_sync_loop_polls_while_sse_is_open(monkeypatch):
+    transport = _make_transport()
+    events = []
+
+    class FakeStop:
+        def __init__(self):
+            self.wait_calls = 0
+
+        def is_set(self):
+            return self.wait_calls > 0
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            return True
+
+    transport._stop = FakeStop()
+    monkeypatch.setattr(transport, "_poll_once", lambda cfg: events.append("polled"))
+    monkeypatch.setattr(transport, "_sync_local_clipboard", lambda cfg: events.append("synced"))
+    monkeypatch.setattr(transport, "_relay_poll_seconds", lambda cfg: 0.01)
+
+    transport._clipboard_sync_loop()
+
+    assert events == ["polled", "synced"]

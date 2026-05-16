@@ -160,6 +160,10 @@ function inboxIndexKey(pairId: string, target: Target): Deno.KvKey {
   return ["pair", pairId, "idx", target];
 }
 
+function latestMessageKey(pairId: string, target: Target): Deno.KvKey {
+  return ["pair", pairId, "latest", target];
+}
+
 function sequenceKey(pairId: string): Deno.KvKey {
   return ["pair", pairId, "seq"];
 }
@@ -235,6 +239,23 @@ async function collectMessagesFromIndex(
   return messages;
 }
 
+async function collectLatestMessage(
+  pairId: string,
+  target: Target,
+  after: number,
+  correlationId: string | null,
+): Promise<StoredMessage[]> {
+  const entry = await kv.get<StoredMessage>(latestMessageKey(pairId, target));
+  const message = entry.value;
+  if (!message || message.id <= after) {
+    return [];
+  }
+  if (correlationId && message.correlation_id !== correlationId) {
+    return [];
+  }
+  return [await hydrateShardedMessage(pairId, target, message)];
+}
+
 async function collectMessagesForPair(
   pairId: string,
   target: Target,
@@ -261,6 +282,21 @@ async function collectMessagesForPair(
       ids: indexedMessages.map((message) => message.id),
     });
     return indexedMessages;
+  }
+
+  const latestMessage = await collectLatestMessage(pairId, target, after, correlationId);
+  if (latestMessage.length > 0) {
+    debugLog("collected latest message", {
+      pairId,
+      pairIdLength: pairId.length,
+      target,
+      after,
+      limit,
+      correlationId,
+      count: latestMessage.length,
+      ids: latestMessage.map((message) => message.id),
+    });
+    return latestMessage;
   }
 
   const prefix = messagePrefix(pairId, target);
@@ -452,6 +488,7 @@ async function postMessage(
     try {
       const commit = await kv.atomic()
         .set(key, message, { expireIn: ttlMs })
+        .set(latestMessageKey(pairId, target), message, { expireIn: ttlMs })
         .set(notifyKey, id, { expireIn: ttlMs })
         .commit();
       if (!commit.ok) {
@@ -510,6 +547,7 @@ async function postMessage(
   }
 
   const op = kv.atomic().set(key, metaMsg, { expireIn: ttlMs });
+  op.set(latestMessageKey(pairId, target), metaMsg, { expireIn: ttlMs });
   for (let i = 0; i < chunkCount; i++) {
     const start = i * IMAGE_CHUNK_CHARS;
     op.set(
