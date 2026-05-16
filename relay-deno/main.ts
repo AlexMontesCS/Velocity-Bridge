@@ -323,6 +323,14 @@ async function postMessage(
       if (!commit.ok) {
         throw new HttpError(503, "Relay could not store message");
       }
+      debugLog("queued message", {
+        pairId,
+        pairIdLength: pairId.length,
+        target,
+        id,
+        kind,
+        correlationId,
+      });
       return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
     } catch (err) {
       // V8-serialized KV value can exceed the limit even when JSON.stringify length looks OK.
@@ -378,6 +386,15 @@ async function postMessage(
   if (!commit.ok) {
     throw new HttpError(503, "Relay could not store sharded message");
   }
+  debugLog("queued sharded message", {
+    pairId,
+    pairIdLength: pairId.length,
+    target,
+    id,
+    kind,
+    correlationId,
+    chunkCount,
+  });
 
   return { status: "queued", id, expires_in: MESSAGE_TTL_SECONDS };
 }
