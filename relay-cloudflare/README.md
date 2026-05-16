@@ -5,7 +5,7 @@
 This relay runs as a Cloudflare Worker with one Durable Object per pair ID.
 Messages are stored inside that pair's Durable Object, and desktop delivery uses
 Server-Sent Events. The `GET /messages/...` endpoint remains available for
-manual debugging and older clients.
+manual debugging and older clients
 
 ## Why Cloudflare?
 
