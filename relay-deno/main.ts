@@ -40,6 +40,8 @@ const KV_MAX_MESSAGE_BYTES = 52_000;
 const IMAGE_CHUNK_CHARS = 50_000;
 /** Deno Deploy: many mutations per atomic; we keep ≤10 for compatibility with older limits. */
 const MAX_IMAGE_SHARDS = 8;
+/** Keep idle SSE responses alive across serverless/proxy idle timers. */
+const SSE_HEARTBEAT_MS = 15_000;
 
 const kv = await Deno.openKv();
 const DEBUG_RELAY = (Deno.env.get("RELAY_DEBUG") || "").toLowerCase() === "true";
@@ -582,6 +584,9 @@ async function subscribeSSE(
           const iter = watchStream[Symbol.asyncIterator]();
 
           try {
+            let pendingKv:
+              | Promise<{ tag: "kv"; r: Awaited<ReturnType<typeof iter.next>> }>
+              | undefined;
             while (eventCount < maxEvents) {
               const elapsed = Date.now() - startTime;
               if (elapsed >= timeoutMs) {
@@ -591,17 +596,35 @@ async function subscribeSSE(
               const budget = timeoutMs - elapsed;
               if (budget <= 0) break;
 
-              const nextKv = iter.next().then((r) => ({ tag: "kv" as const, r }));
+              pendingKv ??= iter.next().then((r) => ({ tag: "kv" as const, r }));
               let tid: ReturnType<typeof setTimeout> | undefined;
               const onBudget = new Promise<{ tag: "to" }>((resolve) => {
                 tid = setTimeout(() => resolve({ tag: "to" }), budget);
               });
-              const winner = await Promise.race([nextKv, onBudget]);
+              let heartbeatId: ReturnType<typeof setTimeout> | undefined;
+              const onHeartbeat = new Promise<{ tag: "heartbeat" }>((resolve) => {
+                heartbeatId = setTimeout(
+                  () => resolve({ tag: "heartbeat" }),
+                  Math.min(SSE_HEARTBEAT_MS, budget),
+                );
+              });
+              const winner = await Promise.race([pendingKv, onBudget, onHeartbeat]);
               if (tid !== undefined) clearTimeout(tid);
+              if (heartbeatId !== undefined) clearTimeout(heartbeatId);
               if (winner.tag === "to") {
                 debugLog("SSE closing (idle timeout)", { eventCount, pairId, target });
                 break;
               }
+              if (winner.tag === "heartbeat") {
+                try {
+                  controller.enqueue(encoder.encode(": heartbeat\n\n"));
+                } catch (enqueueErr) {
+                  debugLog("SSE heartbeat failed (client likely disconnected)", enqueueErr);
+                  break;
+                }
+                continue;
+              }
+              pendingKv = undefined;
               if (winner.r.done) break;
 
               await drainBatch();

@@ -139,6 +139,7 @@ class RelayTransport:
             try:
                 # Use SSE for real-time delivery
                 self._try_sse(cfg)
+                self._poll_once(cfg)
                 self._last_error = None
                 self._last_poll = time.strftime("%Y-%m-%dT%H:%M:%S")
             except Exception as exc:  # pragma: no cover - depends on network
@@ -284,7 +285,15 @@ class RelayTransport:
                 except subprocess.TimeoutExpired:
                     rc = -1
 
-        # 0 = clean close; 28 = CURLE_OPERATION_TIMEDOUT; negative = signal after terminate
+        # 0 = clean close; 28 = CURLE_OPERATION_TIMEDOUT; negative = signal after terminate.
+        # Some serverless/proxy edges close idle SSE sockets as a TLS EOF; reconnect handles it.
+        if self._is_transient_sse_close(rc, stderr_data):
+            self.logger.info(
+                "SSE: stream ended (rc=%s), received %s message(s)",
+                rc,
+                messages_received,
+            )
+            return
         if rc not in (0, 28) and not (isinstance(rc, int) and rc < 0):
             detail = (stderr_data or "").strip() or f"curl exit {rc}"
             self.logger.warning("SSE curl: %s", detail[:200])
@@ -295,6 +304,12 @@ class RelayTransport:
             rc,
             messages_received,
         )
+
+    def _is_transient_sse_close(self, rc: int | None, stderr_data: str) -> bool:
+        if rc != 56:
+            return False
+        detail = (stderr_data or "").lower()
+        return "unexpected eof while reading" in detail or "ssl_read" in detail
 
     def _handle_sse_message(self, cfg: dict[str, Any], message: dict[str, Any]) -> None:
         """Handle a message received via SSE."""

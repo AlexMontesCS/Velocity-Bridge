@@ -82,3 +82,56 @@ def test_run_falls_back_to_polling(monkeypatch):
 
     assert events == ["polled"]
     assert transport._last_error is None
+
+
+def test_run_polls_after_clean_sse_session(monkeypatch):
+    transport = _make_transport()
+    events = []
+
+    class FakeStop:
+        def __init__(self):
+            self.wait_calls = 0
+
+        def is_set(self):
+            return self.wait_calls > 0
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            return True
+
+    transport._stop = FakeStop()
+    monkeypatch.setattr(transport, "_try_sse", lambda cfg: events.append("sse"))
+    monkeypatch.setattr(transport, "_poll_once", lambda cfg: events.append("polled"))
+
+    transport._run()
+
+    assert events == ["sse", "polled"]
+    assert transport._last_error is None
+
+
+def test_stream_sse_treats_idle_tls_eof_as_transient(monkeypatch):
+    transport = _make_transport()
+
+    class _EmptyStream:
+        def __iter__(self):
+            return iter(())
+
+        def close(self):
+            pass
+
+    class FakeProc:
+        def __init__(self, command, stdout=None, stderr=None, text=None, bufsize=None):
+            self.stdout = _EmptyStream()
+            self.stderr = SimpleNamespace(
+                read=lambda: (
+                    "curl: (56) OpenSSL SSL_read: OpenSSL/3.5.5: "
+                    "error:0A000126:SSL routines::unexpected eof while reading, errno 0"
+                )
+            )
+
+        def wait(self, timeout=None):
+            return 56
+
+    monkeypatch.setattr(relay_client.subprocess, "Popen", FakeProc)
+
+    transport._stream_sse_with_curl("https://example.invalid/stream", transport.load_config())
