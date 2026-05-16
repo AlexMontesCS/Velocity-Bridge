@@ -42,6 +42,8 @@ const IMAGE_CHUNK_CHARS = 50_000;
 const MAX_IMAGE_SHARDS = 8;
 /** Keep idle SSE responses alive across serverless/proxy idle timers. */
 const SSE_HEARTBEAT_MS = 15_000;
+/** Exact-read inbox index used as a fallback when prefix listing misses recent writes. */
+const INBOX_INDEX_LIMIT = 500;
 
 const kv = await Deno.openKv();
 const DEBUG_RELAY = (Deno.env.get("RELAY_DEBUG") || "").toLowerCase() === "true";
@@ -154,6 +156,10 @@ function streamNotifyKey(pairId: string, target: Target): Deno.KvKey {
   return ["pair", pairId, "sse", target];
 }
 
+function inboxIndexKey(pairId: string, target: Target): Deno.KvKey {
+  return ["pair", pairId, "idx", target];
+}
+
 function sequenceKey(pairId: string): Deno.KvKey {
   return ["pair", pairId, "seq"];
 }
@@ -178,6 +184,57 @@ async function nextMessageId(pairId: string): Promise<number> {
   throw new HttpError(503, "Relay could not allocate message id");
 }
 
+async function appendInboxIndex(pairId: string, target: Target, id: number): Promise<void> {
+  const key = inboxIndexKey(pairId, target);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const current = await kv.get<number[]>(key);
+    const ids = Array.isArray(current.value) ? current.value : [];
+    const next = [...ids.filter((existing) => existing !== id), id]
+      .sort((a, b) => a - b)
+      .slice(-INBOX_INDEX_LIMIT);
+    const commit = await kv.atomic()
+      .check(current)
+      .set(key, next, { expireIn: MESSAGE_TTL_SECONDS * 1000 })
+      .commit();
+    if (commit.ok) {
+      return;
+    }
+  }
+  debugLog("inbox index update failed", { pairId, target, id });
+}
+
+async function collectMessagesFromIndex(
+  pairId: string,
+  target: Target,
+  after: number,
+  limit: number,
+  correlationId: string | null,
+): Promise<StoredMessage[]> {
+  const index = await kv.get<number[]>(inboxIndexKey(pairId, target));
+  const ids = (Array.isArray(index.value) ? index.value : [])
+    .filter((id) => Number.isFinite(id) && id > after)
+    .sort((a, b) => a - b)
+    .slice(0, limit);
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const messages: StoredMessage[] = [];
+  for (const id of ids) {
+    const entry = await kv.get<StoredMessage>(messageKey(pairId, target, id));
+    const message = entry.value;
+    if (!message || message.id <= after) {
+      continue;
+    }
+    if (correlationId && message.correlation_id !== correlationId) {
+      continue;
+    }
+    messages.push(await hydrateShardedMessage(pairId, target, message));
+    if (messages.length >= limit) break;
+  }
+  return messages;
+}
+
 async function collectMessagesForPair(
   pairId: string,
   target: Target,
@@ -185,6 +242,27 @@ async function collectMessagesForPair(
   limit: number,
   correlationId: string | null,
 ): Promise<StoredMessage[]> {
+  const indexedMessages = await collectMessagesFromIndex(
+    pairId,
+    target,
+    after,
+    limit,
+    correlationId,
+  );
+  if (indexedMessages.length > 0) {
+    debugLog("collected messages from index", {
+      pairId,
+      pairIdLength: pairId.length,
+      target,
+      after,
+      limit,
+      correlationId,
+      count: indexedMessages.length,
+      ids: indexedMessages.map((message) => message.id),
+    });
+    return indexedMessages;
+  }
+
   const prefix = messagePrefix(pairId, target);
   const messages: StoredMessage[] = [];
   const entries = kv.list({ prefix });
@@ -206,6 +284,16 @@ async function collectMessagesForPair(
   }
 
   messages.sort((a, b) => a.id - b.id);
+  debugLog("collected messages", {
+    pairId,
+    pairIdLength: pairId.length,
+    target,
+    after,
+    limit,
+    correlationId,
+    count: messages.length,
+    ids: messages.map((message) => message.id),
+  });
   return messages;
 }
 
@@ -369,6 +457,7 @@ async function postMessage(
       if (!commit.ok) {
         throw new HttpError(503, "Relay could not store message");
       }
+      await appendInboxIndex(pairId, target, id);
       await debugVerifyQueuedMessage(key, pairId, target, id);
       debugLog("queued message", {
         pairId,
@@ -433,6 +522,7 @@ async function postMessage(
   if (!commit.ok) {
     throw new HttpError(503, "Relay could not store sharded message");
   }
+  await appendInboxIndex(pairId, target, id);
   await debugVerifyQueuedMessage(key, pairId, target, id);
   debugLog("queued sharded message", {
     pairId,
@@ -534,13 +624,38 @@ async function getMessages(
   const after = safeNumber(params.get("after"), 0);
   const limit = Math.min(Math.max(safeNumber(params.get("limit"), 25), 1), MAX_LIMIT);
   const correlationId = params.get("correlation_id");
+  const debugId = DEBUG_RELAY ? safeNumber(params.get("debug_id"), 0) : 0;
 
   const page = await collectMessagesForPair(pairId, target, after, limit, correlationId);
+  let debugMessage: StoredMessage | null = null;
+  if (debugId > 0) {
+    const exact = await kv.get<StoredMessage>(messageKey(pairId, target, debugId));
+    debugMessage = exact.value || null;
+    debugLog("debug message lookup", {
+      pairId,
+      pairIdLength: pairId.length,
+      target,
+      debugId,
+      found: Boolean(debugMessage),
+      storedId: debugMessage?.id,
+      storedTarget: debugMessage?.target,
+      storedKind: debugMessage?.kind,
+    });
+  }
 
   return {
     status: "success",
     messages: page,
     cursor: page.length ? page[page.length - 1].id : after,
+    ...(debugId > 0
+      ? {
+        debug: {
+          id: debugId,
+          found: Boolean(debugMessage),
+          message: debugMessage,
+        },
+      }
+      : {}),
   };
 }
 
@@ -765,6 +880,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const parts = url.pathname.split("/").filter(Boolean);
     debugLog("incoming request", {
       method: request.method,
+      host: request.headers.get("host"),
       path: url.pathname,
       query: url.search,
       contentType: request.headers.get("content-type"),
